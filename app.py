@@ -11,8 +11,8 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_para_sesiones_tienda_123")
 
 # Credenciales de Administrador por defecto
-ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
+ADMIN_USER = "admin"
+ADMIN_PASS = "admin123"
 
 # Conexión con Supabase desde Variables de Entorno o credenciales directas
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
