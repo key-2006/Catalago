@@ -14,10 +14,9 @@ app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_para_sesiones_tienda_123
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
-# Conexión con Supabase (Lee dinámicamente las Variables de Entorno)
-# Conexión directa con Supabase
-SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
+# Conexión con Supabase desde Variables de Entorno
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bkxniuudzmxcpouzgqxm.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -173,7 +172,7 @@ ADMIN_BASE_TEMPLATE = """
         <div class="brand">
             <i class="fa-solid fa-store"></i>
             <div>
-                <h2>Tienda de Ropa</h2>
+                <h2>Vibe Apparel</h2>
                 <p>Catálogo Admin</p>
             </div>
         </div>
@@ -349,7 +348,7 @@ def catalogo_publico():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Moda Urbana - Catálogo Digital</title>
+        <title>Vibe Apparel - Catálogo Digital</title>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
@@ -407,7 +406,7 @@ def catalogo_publico():
     </head>
     <body>
         <nav>
-            <a href="/" class="logo"><i class="fa-solid fa-shirt"></i> Moda Urbana</a>
+            <a href="/" class="logo"><i class="fa-solid fa-shirt"></i> Vibe Apparel</a>
             <a href="/admin" style="color: var(--muted); text-decoration: none; font-weight: 600;"><i class="fa-solid fa-lock"></i> Panel Admin</a>
         </nav>
 
@@ -482,7 +481,6 @@ def hacer_encargo():
     notas = request.form.get("notas")
     
     try:
-        # Guardar el pedido
         supabase.table("pedidos").insert({
             "cliente": nombre_cliente,
             "telefono": telefono,
@@ -491,7 +489,6 @@ def hacer_encargo():
             "estado": "Pendiente"
         }).execute()
         
-        # Consultar y descontar stock
         res_prod = supabase.table("productos").select("stock").eq("id", producto_id).execute()
         if res_prod.data:
             stock_actual = res_prod.data[0].get('stock') if res_prod.data[0].get('stock') is not None else 1
@@ -539,7 +536,7 @@ def admin_index():
     return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
 
 # =========================================================
-# PANEL ADMIN - VER PEDIDOS (CON NOMBRE DE PRENDA)
+# PANEL ADMIN - VER PEDIDOS
 # =========================================================
 @app.route("/pedidos")
 @login_required
