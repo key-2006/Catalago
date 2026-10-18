@@ -1,0 +1,134 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #f0f4ff, #ffeef2);
+    color: #333;
+}
+
+.contenedor {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* MENÚ */
+.menu {
+    width: 250px;
+    background: linear-gradient(180deg, #4b0082, #6a0dad);
+    color: white;
+    padding: 25px 15px;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+}
+
+.menu h2 {
+    text-align: center;
+    margin-bottom: 5px;
+    font-size: 22px;
+}
+
+.administracion {
+    text-align: center;
+    color: #ddd;
+    font-size: 13px;
+    margin-bottom: 30px;
+}
+
+.menu a {
+    display: block;
+    text-decoration: none;
+    color: white;
+    padding: 14px;
+    margin-bottom: 8px;
+    border-radius: 10px;
+    transition: 0.3s;
+    font-weight: 500;
+}
+
+.menu a:nth-child(3) { background: #007bff; }
+.menu a:nth-child(4) { background: #28a745; }
+.menu a:nth-child(5) { background: #ffc107; }
+.menu a:nth-child(6) { background: #dc3545; }
+.menu a:nth-child(7) { background: #6f42c1; }
+
+.menu a:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(255,255,255,0.4);
+}
+
+/* CONTENIDO */
+.contenido {
+    flex: 1;
+    padding: 40px;
+}
+
+.contenido h1 {
+    font-size: 32px;
+    margin-bottom: 10px;
+    color: #4b0082;
+}
+
+.bienvenida {
+    color: #555;
+    margin-bottom: 30px;
+    font-size: 16px;
+}
+
+/* TARJETAS */
+.tarjetas {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.tarjeta {
+    width: 220px;
+    padding: 25px;
+    border-radius: 15px;
+    color: white;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+    text-align: center;
+    transition: 0.3s;
+}
+
+.tarjeta:hover {
+    transform: translateY(-5px);
+}
+
+.tarjeta:nth-child(1) {
+    background: linear-gradient(135deg, #ff7eb3, #ff758c);
+}
+.tarjeta:nth-child(2) {
+    background: linear-gradient(135deg, #6dd5fa, #2980b9);
+}
+.tarjeta:nth-child(3) {
+    background: linear-gradient(135deg, #a18cd1, #fbc2eb);
+}
+
+.tarjeta span {
+    font-size: 40px;
+}
+
+.tarjeta h3 {
+    margin-top: 10px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.tarjeta p {
+    color: #f0f0f0;
+}
+
+/* CAJA INFERIOR */
+.bienvenida-box {
+    margin-top: 40px;
+    background: linear-gradient(90deg, #ffecd2, #fcb69f);
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    text-align: center;
+    font-weight: 500;
+}
