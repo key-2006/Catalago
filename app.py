@@ -14,14 +14,16 @@ app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_para_sesiones_tienda_123
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
-# Conexión con Supabase
-SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S" 
+# Conexión con Supabase desde Variables de Entorno o credenciales directas
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bkxniuudzmxcpouzgqxm.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except Exception as e:
     supabase = None
 
+# Decorador para proteger rutas exclusivas de administración
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -61,6 +63,62 @@ PLANTILLA_SUSPENDIDO = """
 </html>
 """
 
+# Plantilla base del Panel Admin
+ADMIN_BASE_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Catálogo Digital</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --sidebar-bg: #0F172A; --sidebar-hover: #1E293B; --primary: #4F46E5; --primary-hover: #4338CA; --bg: #F8FAFC; --surface: #FFFFFF; --text-main: #1E293B; --text-muted: #64748B; --border: #E2E8F0; --danger: #EF4444; --radius: 12px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { display: flex; min-height: 100vh; background-color: var(--bg); color: var(--text-main); }
+        .sidebar { width: 260px; background-color: var(--sidebar-bg); padding: 24px 16px; color: #F8FAFC; display: flex; flex-direction: column; gap: 6px; }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 20px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }
+        .brand i { font-size: 1.5rem; color: #818CF8; }
+        .brand h2 { font-size: 1.1rem; font-weight: 700; }
+        .brand p { font-size: 0.75rem; color: #94A3B8; text-transform: uppercase; }
+        .nav-btn { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 8px; color: #94A3B8; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
+        .nav-btn:hover, .nav-btn.active { background-color: var(--sidebar-hover); color: #FFFFFF; }
+        .nav-btn i { font-size: 1.1rem; width: 20px; text-align: center; }
+        .nav-btn.logout-link { margin-top: auto; background: rgba(239, 68, 68, 0.15); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .nav-btn.logout-link:hover { background: var(--danger); color: white; }
+        .main-content { flex: 1; padding: 32px; overflow-y: auto; }
+        .header-title { margin-bottom: 24px; }
+        .header-title h1 { font-size: 1.75rem; font-weight: 800; color: #0F172A; }
+        .table-box { background: var(--surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { padding: 12px 16px; background: #F8FAFC; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
+        .img-preview-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="brand">
+            <i class="fa-solid fa-store"></i>
+            <div>
+                <h2>Vibe Apparel</h2>
+                <p>Catálogo Admin</p>
+            </div>
+        </div>
+        <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
+        <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
+        <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
+        <a href="/" class="nav-btn" target="_blank"><i class="fa-solid fa-globe"></i> Ver Catálogo Público</a>
+        <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
+    </div>
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
+"""
+
 # Redirección de la raíz a la tienda principal
 @app.route("/")
 def inicio_raiz():
@@ -70,7 +128,6 @@ def inicio_raiz():
 @app.route("/tienda/<slug>")
 def catalogo_tienda(slug):
     try:
-        # 1. Obtener los datos de la tienda por su slug
         res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
         if not res_tienda.data:
             return "<h3>Error: La tienda especificada no existe.</h3>", 404
@@ -78,23 +135,22 @@ def catalogo_tienda(slug):
         tienda = res_tienda.data[0]
         tienda_id = tienda.get("id")
         
-        # 2. Verificar si la suscripción de este local está activa
         if not tienda.get("subscripcion_activa", True):
             return render_template_string(PLANTILLA_SUSPENDIDO)
 
-        # 3. Filtrar categorías y productos EXCLUSIVOS de esta tienda
         res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_cat.data if res_cat.data else []
         
         cat_id_sel = request.args.get("cat")
         msg_exito = request.args.get("encargo_exito")
         
-        query_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id)
+        res_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
+        todos_productos = res_prod.data if res_prod.data else []
+
         if cat_id_sel:
-            query_prod = query_prod.eq("categoria_id", cat_id_sel)
-        
-        res_prod = query_prod.execute()
-        productos = res_prod.data if res_prod.data else []
+            productos = [p for p in todos_productos if str(p.get("categoria_id") or "") == str(cat_id_sel)]
+        else:
+            productos = todos_productos
 
     except Exception as e:
         return f"Error al cargar la tienda: {e}", 500
@@ -162,8 +218,6 @@ def catalogo_tienda(slug):
             nav {{ background: var(--surface); border-bottom: 1px solid #E2E8F0; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
             .logo {{ font-size: 1.3rem; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }}
             .hero {{ background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; padding: 2.5rem 1.5rem; text-align: center; margin: 1.5rem auto; max-width: 1200px; border-radius: 16px; }}
-            .payments-bar {{ background: #FFFFFF; border: 1px solid #E2E8F0; max-width: 1200px; margin: 0 auto 1.5rem; padding: 1rem; border-radius: 12px; display: flex; align-items: center; justify-content: space-around; flex-wrap: wrap; gap: 1rem; }}
-            .payment-item {{ display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.85rem; color: #475569; }}
             .layout {{ max-width: 1200px; margin: 0 auto 2rem; padding: 0 1.5rem; display: grid; grid-template-columns: 240px 1fr; gap: 2rem; }}
             .sidebar-cat {{ background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid #E2E8F0; height: fit-content; }}
             .cat-list {{ list-style: none; margin-top: 1rem; }}
@@ -246,7 +300,7 @@ def catalogo_tienda(slug):
     </html>
     """)
 
-# PROCESAR ENCARGO CON REGISTRO DE TIENDA_ID
+# PROCESAR ENCARGO
 @app.route("/hacer-encargo", methods=["POST"])
 def hacer_encargo():
     tienda_id = request.form.get("tienda_id")
@@ -270,4 +324,153 @@ def hacer_encargo():
         if res_prod.data:
             stock_actual = res_prod.data[0].get('stock') if res_prod.data[0].get('stock') is not None else 1
             nuevo_stock = max(0, stock_actual - 1)
-            supabase.table("productos").update({"
+            supabase.table("productos").update({"stock": nuevo_stock}).eq("id", producto_id).execute()
+
+        return redirect(url_for("catalogo_tienda", slug=slug, encargo_exito=1))
+    except Exception as e:
+        return f"Error al procesar el encargo: {e}"
+
+# LOGIN Y LOGOUT
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        user = request.form.get("username")
+        password = request.form.get("password")
+        if user == ADMIN_USER and password == ADMIN_PASS:
+            session["logged_in"] = True
+            return redirect(url_for("admin_index"))
+        else:
+            error = "Usuario o contraseña incorrectos."
+
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Iniciar Sesión - Administración</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+            body { background: #F8FAFC; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+            .login-card { background: white; padding: 32px; border-radius: 16px; border: 1px solid #E2E8F0; width: 100%; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+            .login-card h2 { color: #0F172A; font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; text-align: center; }
+            input { width: 100%; padding: 12px; margin: 8px 0 16px; border: 1px solid #CBD5E1; border-radius: 8px; }
+            button { width: 100%; padding: 12px; background: #4F46E5; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+        </style>
+    </head>
+    <body>
+        <div class="login-card">
+            <h2>Acceso Administrador</h2>
+            {% if error %}<p style="color:red; text-align:center;">{{ error }}</p>{% endif %}
+            <form method="POST">
+                <label>Usuario:</label>
+                <input type="text" name="username" required>
+                <label>Contraseña:</label>
+                <input type="password" name="password" required>
+                <button type="submit">Entrar al Panel</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """, error=error)
+
+@app.route("/logout")
+def logout():
+    session.pop("logged_in", None)
+    return redirect(url_for("login"))
+
+# RUTAS DEL PANEL DE ADMINISTRACIÓN
+@app.route("/admin")
+@login_required
+def admin_index():
+    content = """
+        <div class="header-title">
+            <h1>Panel de Administración</h1>
+            <p>Bienvenido al centro de gestión de tu catálogo digital.</p>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+            <a href="/pedidos" style="text-decoration:none;">
+                <div style="background:white; padding:24px; border-radius:12px; border:1px solid #E2E8F0;">
+                    <h3 style="color:#0F172A;">Encargos / Pedidos</h3>
+                </div>
+            </a>
+            <a href="/productos" style="text-decoration:none;">
+                <div style="background:white; padding:24px; border-radius:12px; border:1px solid #E2E8F0;">
+                    <h3 style="color:#0F172A;">Productos</h3>
+                </div>
+            </a>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/pedidos")
+@login_required
+def ver_pedidos():
+    pedidos = []
+    try:
+        res = supabase.table("pedidos").select("*").execute()
+        pedidos = res.data if res.data else []
+    except Exception as e:
+        pass
+
+    rows = ""
+    for ped in pedidos:
+        rows += f"""
+        <tr>
+            <td><strong>#{ped.get('id')}</strong></td>
+            <td>{ped.get('cliente') or 'Cliente'}</td>
+            <td><a href="https://wa.me/{ped.get('telefono')}" target="_blank" style="color:#25D366; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> {ped.get('telefono')}</a></td>
+            <td>{ped.get('notas') or 'Sin notas'}</td>
+            <td><span style="background:#FEF3C7; color:#92400E; padding:4px 10px; border-radius:999px;">{ped.get('estado') or 'Pendiente'}</span></td>
+        </tr>
+        """
+
+    content = f"""
+        <div class="header-title"><h1>Encargos Recibidos</h1></div>
+        <div class="table-box">
+            <table>
+                <thead><tr><th>ID</th><th>Cliente</th><th>WhatsApp</th><th>Notas</th><th>Estado</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="5">No hay encargos.</td></tr>'}</tbody>
+            </table>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/productos")
+@login_required
+def ver_productos():
+    productos = []
+    try:
+        res = supabase.table("productos").select("*").execute()
+        productos = res.data if res.data else []
+    except Exception as e:
+        pass
+
+    rows = ""
+    for p in productos:
+        img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+        rows += f"""
+        <tr>
+            <td><strong>#{p.get('id')}</strong></td>
+            <td><img src="{img_url}" class="img-preview-thumb"></td>
+            <td>{p.get('nombre')}</td>
+            <td><strong>${p.get('precio')} MXN</strong></td>
+            <td>{p.get('stock', 0)} pzas</td>
+        </tr>
+        """
+
+    content = f"""
+        <div class="header-title"><h1>Productos en Inventario</h1></div>
+        <div class="table-box">
+            <table>
+                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="5">No hay productos.</td></tr>'}</tbody>
+            </table>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+if __name__ == '__main__':
+    app.run(debug=True)
