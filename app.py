@@ -15,8 +15,9 @@ ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
 # Conexión con Supabase (Lee dinámicamente las Variables de Entorno)
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bkxniuudzmxcpouzgqxm.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S")
+# Conexión directa con Supabase
+SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
+SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
