@@ -1,29 +1,23 @@
 from flask import Flask, request, render_template_string, redirect, url_for, session
-from dotenv import load_dotenv
 import os
 import base64
 from functools import wraps
 from supabase import create_client, Client
 
-load_dotenv()
-
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_para_sesiones_tienda_123")
+app.secret_key = "clave_secreta_para_sesiones_tienda_123"
 
-# Credenciales de Administrador por defecto
-ADMIN_USER = "admin"
-ADMIN_PASS = "admin123"
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
 
-# Conexión con Supabase desde Variables de Entorno o credenciales directas
-SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
-
+# Credenciales de Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bkxniuudzmxcpouzgqxm.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S")  
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except Exception as e:
     supabase = None
 
-# Decorador para proteger rutas exclusivas de administración
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -32,7 +26,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Plantilla para tiendas inactivas/suspendidas por pago
 PLANTILLA_SUSPENDIDO = """
 <!DOCTYPE html>
 <html lang="es">
@@ -63,7 +56,6 @@ PLANTILLA_SUSPENDIDO = """
 </html>
 """
 
-# Plantilla base del Panel Admin
 ADMIN_BASE_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="es">
@@ -119,41 +111,47 @@ ADMIN_BASE_TEMPLATE = """
 </html>
 """
 
-# Redirección de la raíz a la tienda principal
 @app.route("/")
 def inicio_raiz():
     return redirect(url_for("catalogo_tienda", slug="vibe-apparel"))
 
-# VISTA PÚBLICA MULTI-TIENDA
 @app.route("/tienda/<slug>")
 def catalogo_tienda(slug):
     try:
+        # Intentar obtener los datos de la tienda
         res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
-        if not res_tienda.data:
-            return "<h3>Error: La tienda especificada no existe.</h3>", 404
         
+        # Si la tienda no está en la base de datos, la inserta en el momento
+        if not res_tienda.data:
+            supabase.table("tiendas").insert({
+                "nombre": "Vibe Apparel",
+                "slug": slug,
+                "subscripcion_activa": True
+            }).execute()
+            res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
+
         tienda = res_tienda.data[0]
         tienda_id = tienda.get("id")
         
         if not tienda.get("subscripcion_activa", True):
             return render_template_string(PLANTILLA_SUSPENDIDO)
 
-        res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
+        res_cat = supabase.table("categorias").select("*").execute()
         categorias = res_cat.data if res_cat.data else []
         
         cat_id_sel = request.args.get("cat")
         msg_exito = request.args.get("encargo_exito")
         
-        res_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
+        res_prod = supabase.table("productos").select("*").execute()
         todos_productos = res_prod.data if res_prod.data else []
 
         if cat_id_sel:
-            productos = [p for p in todos_productos if str(p.get("categoria_id") or "") == str(cat_id_sel)]
+            productos = [p for p in todos_productos if str(p.get("categoria_id") or p.get("id_categoria") or "") == str(cat_id_sel)]
         else:
             productos = todos_productos
 
     except Exception as e:
-        return f"Error al cargar la tienda: {e}", 500
+        return f"<div style='padding:40px; font-family:sans-serif;'><h2>Ocurrió un error al cargar la tienda:</h2><p>{e}</p></div>", 500
 
     cards_html = ""
     for p in productos:
@@ -260,7 +258,7 @@ def catalogo_tienda(slug):
             </aside>
 
             <main class="products-grid">
-                {cards_html if cards_html else '<p style="grid-column: 1/-1; text-align: center; color: #64748B; padding: 2rem;">No hay prendas registradas para este local.</p>'}
+                {cards_html if cards_html else '<p style="grid-column: 1/-1; text-align: center; color: #64748B; padding: 2rem;">No hay prendas registradas en este catálogo.</p>'}
             </main>
         </div>
 
@@ -300,7 +298,6 @@ def catalogo_tienda(slug):
     </html>
     """)
 
-# PROCESAR ENCARGO
 @app.route("/hacer-encargo", methods=["POST"])
 def hacer_encargo():
     tienda_id = request.form.get("tienda_id")
@@ -330,7 +327,6 @@ def hacer_encargo():
     except Exception as e:
         return f"Error al procesar el encargo: {e}"
 
-# LOGIN Y LOGOUT
 @app.route("/login", methods=["GET", "POST"])
 def login():
     error = None
@@ -381,7 +377,6 @@ def logout():
     session.pop("logged_in", None)
     return redirect(url_for("login"))
 
-# RUTAS DEL PANEL DE ADMINISTRACIÓN
 @app.route("/admin")
 @login_required
 def admin_index():
