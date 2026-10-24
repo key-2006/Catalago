@@ -1,28 +1,27 @@
 from flask import Flask, request, render_template_string, redirect, url_for, session
 import os
-import base64
 from functools import wraps
 from supabase import create_client, Client
 
 app = Flask(__name__)
-app.secret_key = "clave_secreta_para_sesiones_tienda_123"
+app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_multiusuario_tiendas_123")
 
-ADMIN_USER = os.getenv("ADMIN_USER", "admin")
-ADMIN_PASS = os.getenv("ADMIN_PASS", "admin123")
+# Conexión con Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bkxniuudzmxcpouzgqxm.supabase.co")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S")
 
-# Credenciales de Supabase
-SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
+supabase: Client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"Error al conectar con Supabase: {e}")
 
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-except Exception as e:
-    supabase = None
-
+# Decorador de autenticación protegida
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not session.get("logged_in"):
+        if not session.get("logged_in") or not session.get("tienda_id"):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
@@ -95,14 +94,13 @@ ADMIN_BASE_TEMPLATE = """
         <div class="brand">
             <i class="fa-solid fa-store"></i>
             <div>
-                <h2>Vibe Apparel</h2>
-                <p>Catálogo Admin</p>
+                <h2>Panel Local</h2>
+                <p>Gestión Exclusiva</p>
             </div>
         </div>
         <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
         <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
         <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
-        <a href="/" class="nav-btn" target="_blank"><i class="fa-solid fa-globe"></i> Ver Catálogo Público</a>
         <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
     </div>
     <div class="main-content">
@@ -118,16 +116,14 @@ def inicio_raiz():
 
 @app.route("/tienda/<slug>")
 def catalogo_tienda(slug):
+    if not supabase:
+        return "<h3>Error de configuración en Supabase.</h3>", 500
+
     try:
         res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
         
         if not res_tienda.data:
-            supabase.table("tiendas").insert({
-                "nombre": "Vibe Apparel",
-                "slug": slug,
-                "subscripcion_activa": True
-            }).execute()
-            res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
+            return "<h3>Error: La tienda especificada no existe.</h3>", 404
 
         tienda = res_tienda.data[0]
         tienda_id = tienda.get("id")
@@ -135,22 +131,21 @@ def catalogo_tienda(slug):
         if not tienda.get("subscripcion_activa", True):
             return render_template_string(PLANTILLA_SUSPENDIDO)
 
-        res_cat = supabase.table("categorias").select("*").execute()
+        res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_cat.data if res_cat.data else []
         
         cat_id_sel = request.args.get("cat")
         msg_exito = request.args.get("encargo_exito")
         
-        res_prod = supabase.table("productos").select("*").execute()
-        todos_productos = res_prod.data if res_prod.data else []
-
+        query_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id)
         if cat_id_sel:
-            productos = [p for p in todos_productos if str(p.get("categoria_id") or p.get("id_categoria") or "") == str(cat_id_sel)]
-        else:
-            productos = todos_productos
+            query_prod = query_prod.eq("categoria_id", cat_id_sel)
+        
+        res_prod = query_prod.execute()
+        productos = res_prod.data if res_prod.data else []
 
     except Exception as e:
-        return f"<div style='padding:40px; font-family:sans-serif;'><h2>Ocurrió un error al cargar la tienda:</h2><p>{e}</p></div>", 500
+        return f"<div style='padding:40px; font-family:sans-serif;'><h2>Error al cargar la tienda:</h2><p>{e}</p></div>", 500
 
     cards_html = ""
     for p in productos:
@@ -223,4 +218,119 @@ def catalogo_tienda(slug):
             .cat-item a {{ display: block; padding: 8px 12px; color: var(--muted); text-decoration: none; border-radius: 6px; font-weight: 500; }}
             .cat-item a.active-cat {{ background: #EEF2FF; color: var(--primary); font-weight: 700; }}
             .products-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.5rem; }}
-            .product-card {{ background: var(--surface); border: 1px solid #E2E8F0; border-radius:
+            .product-card {{ background: var(--surface); border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; position: relative; }}
+            .img-wrapper {{ position: relative; width: 100%; height: 220px; background: #E2E8F0; overflow: hidden; }}
+            .img-wrapper img {{ width: 100%; height: 100%; object-fit: cover; }}
+            .card-content {{ padding: 1rem; display: flex; flex-direction: column; flex: 1; }}
+            .category-badge {{ font-size: 0.75rem; color: var(--primary); font-weight: 700; }}
+            .badge-stock {{ font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; }}
+            .stock-in {{ background: #DCFCE7; color: #15803D; }}
+            .stock-out {{ background: #FEE2E2; color: #B91C1C; }}
+            .product-title {{ font-size: 1rem; margin: 6px 0 12px; font-weight: 700; }}
+            .price {{ font-size: 1.2rem; font-weight: 800; }}
+            .btn-encargar {{ display: flex; align-items: center; justify-content: center; gap: 8px; background: #4F46E5; color: white; border: none; padding: 11px; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; }}
+            .modal-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 100; }}
+            .modal-box {{ background: white; padding: 24px; border-radius: 16px; max-width: 450px; width: 90%; }}
+            .alert-toast {{ background: #10B981; color: white; padding: 12px; border-radius: 8px; max-width: 1200px; margin: 0 auto 1rem; text-align: center; font-weight: 600; }}
+        </style>
+    </head>
+    <body>
+        <nav>
+            <a href="/tienda/{slug}" class="logo"><i class="fa-solid fa-shirt"></i> {tienda.get('nombre')}</a>
+            <a href="/login" style="color: var(--muted); text-decoration: none; font-weight: 600;"><i class="fa-solid fa-lock"></i> Panel Admin</a>
+        </nav>
+
+        <section class="hero">
+            <h1>Catálogo de {tienda.get('nombre')}</h1>
+            <p>Explora nuestras prendas disponibles y realiza tu encargo en línea fácil y rápido.</p>
+        </section>
+
+        <div class="payments-bar">
+            <div class="payment-item"><i class="fa-solid fa-money-bill-wave" style="color:#10B981;"></i> Efectivo al Entregar</div>
+            <div class="payment-item"><i class="fa-solid fa-credit-card" style="color:#4F46E5;"></i> Tarjetas de Débito / Crédito</div>
+            <div class="payment-item"><i class="fa-solid fa-mobile-screen-button" style="color:#7C3AED;"></i> Transferencia SPEI</div>
+        </div>
+
+        {'<div class="alert-toast">¡Tu encargo ha sido enviado con éxito! Te contactaremos pronto.</div>' if msg_exito else ''}
+
+        <div class="layout">
+            <aside class="sidebar-cat">
+                <h3>Categorías</h3>
+                <ul class="cat-list">{cat_html}</ul>
+            </aside>
+
+            <main class="products-grid">
+                {cards_html if cards_html else '<p style="grid-column: 1/-1; text-align: center; color: #64748B; padding: 2rem;">No hay prendas registradas en este catálogo.</p>'}
+            </main>
+        </div>
+
+        <div class="modal-overlay" id="modalEncargo">
+            <div class="modal-box">
+                <h3>Encargar Prenda</h3>
+                <p id="modalPrendaNombre" style="color: #4F46E5; font-weight: 700; margin-bottom: 12px;"></p>
+                <form action="/hacer-encargo" method="POST">
+                    <input type="hidden" name="tienda_id" value="{tienda_id}">
+                    <input type="hidden" name="slug" value="{slug}">
+                    <input type="hidden" name="producto_id" id="modalProductoId">
+                    
+                    <label style="font-size: 0.85rem; font-weight: 600;">Tu Nombre Completo:</label>
+                    <input type="text" name="nombre_cliente" style="width:100%; padding:10px; margin:6px 0 12px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                    
+                    <label style="font-size: 0.85rem; font-weight: 600;">Teléfono / WhatsApp de contacto:</label>
+                    <input type="tel" name="telefono" style="width:100%; padding:10px; margin:6px 0 12px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                    
+                    <label style="font-size: 0.85rem; font-weight: 600;">Método de Pago:</label>
+                    <select name="metodo_pago" style="width:100%; padding:10px; margin:6px 0 12px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                        <option value="Efectivo al Entregar">💵 Efectivo al Entregar</option>
+                        <option value="Transferencia SPEI">📱 Transferencia SPEI</option>
+                        <option value="Tarjeta de Débito/Crédito">💳 Tarjeta de Débito / Crédito</option>
+                    </select>
+
+                    <label style="font-size: 0.85rem; font-weight: 600;">Notas o Talla deseada:</label>
+                    <textarea name="notas" rows="3" style="width:100%; padding:10px; margin:6px 0 12px; border:1px solid #CBD5E1; border-radius:8px;"></textarea>
+                    
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button type="submit" style="flex: 1; background: #4F46E5; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 600; cursor: pointer;">Confirmar Encargo</button>
+                        <button type="button" onclick="cerrarModal()" style="background: #E2E8F0; color: #475569; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer;">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            function abrirModal(id, nombre, precio) {{
+                document.getElementById('modalProductoId').value = id;
+                document.getElementById('modalPrendaNombre').innerText = nombre + " - $" + precio + " MXN";
+                document.getElementById('modalEncargo').style.display = 'flex';
+            }}
+            function cerrarModal() {{
+                document.getElementById('modalEncargo').style.display = 'none';
+            }}
+        </script>
+    </body>
+    </html>
+    """)
+
+@app.route("/hacer-encargo", methods=["POST"])
+def hacer_encargo():
+    tienda_id = request.form.get("tienda_id")
+    slug = request.form.get("slug")
+    producto_id = request.form.get("producto_id")
+    nombre_cliente = request.form.get("nombre_cliente")
+    telefono = request.form.get("telefono")
+    metodo_pago = request.form.get("metodo_pago")
+    notas = request.form.get("notas")
+    
+    try:
+        supabase.table("pedidos").insert({
+            "tienda_id": tienda_id,
+            "cliente": nombre_cliente,
+            "telefono": telefono,
+            "metodo_pago": metodo_pago,
+            "notas": notas,
+            "producto_id": producto_id,
+            "estado": "Pendiente"
+        }).execute()
+        
+        res_prod = supabase.table("productos").select("stock").eq("id", producto_id).execute()
+        if res_prod.data:
