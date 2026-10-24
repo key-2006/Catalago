@@ -1,21 +1,18 @@
 from flask import Flask, request, render_template_string, redirect, url_for, session
-import os
 from functools import wraps
 from supabase import create_client, Client
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_multiusuario_tiendas_123")
+app.secret_key = "clave_secreta_multiusuario_tiendas_123"
 
-# Conexión con Supabase
+# Conexión directa con Supabase (sin os.getenv)
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
+SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S" 
 
-supabase: Client = None
-if SUPABASE_URL and SUPABASE_KEY:
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        print(f"Error al conectar con Supabase: {e}")
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    supabase = None
 
 # Decorador de autenticación protegida
 def login_required(f):
@@ -334,3 +331,179 @@ def hacer_encargo():
         
         res_prod = supabase.table("productos").select("stock").eq("id", producto_id).execute()
         if res_prod.data:
+            stock_actual = res_prod.data[0].get('stock') if res_prod.data[0].get('stock') is not None else 1
+            nuevo_stock = max(0, stock_actual - 1)
+            supabase.table("productos").update({"stock": nuevo_stock}).eq("id", producto_id).execute()
+
+        return redirect(url_for("catalogo_tienda", slug=slug, encargo_exito=1))
+    except Exception as e:
+        return f"Error al procesar el encargo: {e}"
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        user_input = request.form.get("username")
+        pass_input = request.form.get("password")
+        
+        try:
+            res = supabase.table("administradores").select("*").eq("username", user_input).execute()
+            
+            if res.data and len(res.data) > 0:
+                admin = res.data[0]
+                if admin.get("password") == pass_input:
+                    session["logged_in"] = True
+                    session["tienda_id"] = admin.get("tienda_id")
+                    session["username"] = admin.get("username")
+                    return redirect(url_for("admin_index"))
+            
+            error = "Usuario o contraseña incorrectos."
+        except Exception as e:
+            error = f"Error al validar credenciales: {e}"
+
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Iniciar Sesión - Panel Local</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+            body { background: #F8FAFC; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+            .login-card { background: white; padding: 32px; border-radius: 16px; border: 1px solid #E2E8F0; width: 100%; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+            .login-card h2 { color: #0F172A; font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; text-align: center; }
+            p.sub { color: #64748B; font-size: 0.85rem; text-align: center; margin-bottom: 24px; }
+            input { width: 100%; padding: 12px; margin: 6px 0 16px; border: 1px solid #CBD5E1; border-radius: 8px; }
+            button { width: 100%; padding: 12px; background: #4F46E5; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+        </style>
+    </head>
+    <body>
+        <div class="login-card">
+            <h2>Acceso Administrador</h2>
+            <p class="sub">Ingresa con las credenciales de tu local</p>
+            {% if error %}<p style="color:red; text-align:center; margin-bottom:12px; font-size:0.9rem;">{{ error }}</p>{% endif %}
+            <form method="POST">
+                <label style="font-size: 0.85rem; font-weight: 600;">Usuario:</label>
+                <input type="text" name="username" required>
+                <label style="font-size: 0.85rem; font-weight: 600;">Contraseña:</label>
+                <input type="password" name="password" required>
+                <button type="submit">Entrar al Panel</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """, error=error)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+@app.route("/admin")
+@login_required
+def admin_index():
+    tienda_id = session.get("tienda_id")
+    nombre_tienda = "Mi Local"
+    try:
+        res = supabase.table("tiendas").select("nombre").eq("id", tienda_id).execute()
+        if res.data:
+            nombre_tienda = res.data[0].get("nombre")
+    except:
+        pass
+
+    content = f"""
+        <div class="header-title">
+            <h1>Panel de Administración - {nombre_tienda}</h1>
+            <p>Aquí gestionas únicamente los productos, inventario y pedidos de tu local.</p>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+            <a href="/pedidos" style="text-decoration:none;">
+                <div style="background:white; padding:24px; border-radius:12px; border:1px solid #E2E8F0;">
+                    <h3 style="color:#0F172A;"><i class="fa-solid fa-receipt" style="color:#4F46E5;"></i> Ver Encargos</h3>
+                    <p style="color:#64748B; font-size:0.85rem; margin-top:6px;">Revisa los pedidos de tus clientes.</p>
+                </div>
+            </a>
+            <a href="/productos" style="text-decoration:none;">
+                <div style="background:white; padding:24px; border-radius:12px; border:1px solid #E2E8F0;">
+                    <h3 style="color:#0F172A;"><i class="fa-solid fa-box-open" style="color:#4F46E5;"></i> Ver Productos</h3>
+                    <p style="color:#64748B; font-size:0.85rem; margin-top:6px;">Administra tu inventario y precios.</p>
+                </div>
+            </a>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/pedidos")
+@login_required
+def ver_pedidos():
+    tienda_id = session.get("tienda_id")
+    pedidos = []
+    try:
+        res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).execute()
+        pedidos = res.data if res.data else []
+    except Exception as e:
+        pass
+
+    rows = ""
+    for ped in pedidos:
+        rows += f"""
+        <tr>
+            <td><strong>#{ped.get('id')}</strong></td>
+            <td>{ped.get('cliente') or 'Cliente'}</td>
+            <td><a href="https://wa.me/{ped.get('telefono')}" target="_blank" style="color:#25D366; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> {ped.get('telefono')}</a></td>
+            <td><span style="background:#EEF2FF; color:#4F46E5; padding:4px 8px; border-radius:6px; font-weight:600;">{ped.get('metodo_pago') or 'No especificado'}</span></td>
+            <td>{ped.get('notas') or 'Sin notas'}</td>
+            <td><span style="background:#FEF3C7; color:#92400E; padding:4px 10px; border-radius:999px;">{ped.get('estado') or 'Pendiente'}</span></td>
+        </tr>
+        """
+
+    content = f"""
+        <div class="header-title"><h1>Encargos Recibidos</h1></div>
+        <div class="table-box">
+            <table>
+                <thead><tr><th>ID</th><th>Cliente</th><th>WhatsApp</th><th>Método de Pago</th><th>Notas</th><th>Estado</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="6">No hay encargos registrados para tu local.</td></tr>'}</tbody>
+            </table>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/productos")
+@login_required
+def ver_productos():
+    tienda_id = session.get("tienda_id")
+    productos = []
+    try:
+        res = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
+        productos = res.data if res.data else []
+    except Exception as e:
+        pass
+
+    rows = ""
+    for p in productos:
+        img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+        rows += f"""
+        <tr>
+            <td><strong>#{p.get('id')}</strong></td>
+            <td><img src="{img_url}" class="img-preview-thumb"></td>
+            <td>{p.get('nombre')}</td>
+            <td><strong>${p.get('precio')} MXN</strong></td>
+            <td>{p.get('stock', 0)} pzas</td>
+        </tr>
+        """
+
+    content = f"""
+        <div class="header-title"><h1>Productos en Inventario</h1></div>
+        <div class="table-box">
+            <table>
+                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="5">No hay productos registrados en tu inventario.</td></tr>'}</tbody>
+            </table>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+if __name__ == '__main__':
+    app.run(debug=True)
