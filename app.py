@@ -7,8 +7,8 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_multiusuario_tiendas_123")
 
 # Conexión con Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://bkxniuudzmxcpouzgqxm.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S")
+SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
+SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
 
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
