@@ -58,7 +58,7 @@ def obtener_sidebar_admin(es_superadmin=False):
     if es_superadmin:
         extra_menu = '<a href="/admin/tienda/nueva" class="nav-btn" style="background: rgba(30, 58, 138, 0.2); color: #93C5FD;"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>'
     
-    return f"""
+    plantilla_base = """
     <!DOCTYPE html>
     <html lang="es">
     <head>
@@ -67,31 +67,30 @@ def obtener_sidebar_admin(es_superadmin=False):
         <title>Panel de Control - Catálogo Digital</title>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <!-- Librería Cropper.js para recortar y editar fotos -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
         <style>
-            :root {{ --sidebar-bg: #18181B; --sidebar-hover: #27272A; --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #F4F4F5; --surface: #FFFFFF; --text-main: #18181B; --text-muted: #71717A; --border: #E4E4E7; --danger: #EF4444; --radius: 8px; }}
-            * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
-            body {{ display: flex; min-height: 100vh; background-color: var(--bg); color: var(--text-main); }}
-            .sidebar {{ width: 260px; background-color: var(--sidebar-bg); padding: 24px 16px; color: #FAFAFA; display: flex; flex-direction: column; gap: 6px; }}
-            .brand {{ display: flex; align-items: center; gap: 12px; padding: 0 12px 20px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }}
-            .brand i {{ font-size: 1.5rem; color: #93C5FD; }}
-            .brand h2 {{ font-size: 1.1rem; font-weight: 700; }}
-            .brand p {{ font-size: 0.75rem; color: #A1A1AA; text-transform: uppercase; }}
-            .nav-btn {{ display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 6px; color: #A1A1AA; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }}
-            .nav-btn:hover, .nav-btn.active {{ background-color: var(--sidebar-hover); color: #FFFFFF; }}
-            .nav-btn i {{ font-size: 1.1rem; width: 20px; text-align: center; }}
-            .nav-btn.logout-link {{ margin-top: auto; background: rgba(239, 68, 68, 0.15); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.2); }}
-            .nav-btn.logout-link:hover {{ background: var(--danger); color: white; }}
-            .main-content {{ flex: 1; padding: 32px; overflow-y: auto; }}
-            .header-title {{ margin-bottom: 24px; }}
-            .header-title h1 {{ font-size: 1.75rem; font-weight: 800; color: var(--text-main); }}
-            .table-box {{ background: var(--surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
-            table {{ width: 100%; border-collapse: collapse; text-align: left; }}
-            th {{ padding: 12px 16px; background: #FAFAFA; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid var(--border); }}
-            td {{ padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }}
-            .img-preview-thumb {{ width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }}
+            :root { --sidebar-bg: #18181B; --sidebar-hover: #27272A; --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #F4F4F5; --surface: #FFFFFF; --text-main: #18181B; --text-muted: #71717A; --border: #E4E4E7; --danger: #EF4444; --radius: 8px; }
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+            body { display: flex; min-height: 100vh; background-color: var(--bg); color: var(--text-main); }
+            .sidebar { width: 260px; background-color: var(--sidebar-bg); padding: 24px 16px; color: #FAFAFA; display: flex; flex-direction: column; gap: 6px; }
+            .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 20px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }
+            .brand i { font-size: 1.5rem; color: #93C5FD; }
+            .brand h2 { font-size: 1.1rem; font-weight: 700; }
+            .brand p { font-size: 0.75rem; color: #A1A1AA; text-transform: uppercase; }
+            .nav-btn { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 6px; color: #A1A1AA; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
+            .nav-btn:hover, .nav-btn.active { background-color: var(--sidebar-hover); color: #FFFFFF; }
+            .nav-btn i { font-size: 1.1rem; width: 20px; text-align: center; }
+            .nav-btn.logout-link { margin-top: auto; background: rgba(239, 68, 68, 0.15); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.2); }
+            .nav-btn.logout-link:hover { background: var(--danger); color: white; }
+            .main-content { flex: 1; padding: 32px; overflow-y: auto; }
+            .header-title { margin-bottom: 24px; }
+            .header-title h1 { font-size: 1.75rem; font-weight: 800; color: var(--text-main); }
+            .table-box { background: var(--surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+            table { width: 100%; border-collapse: collapse; text-align: left; }
+            th { padding: 12px 16px; background: #FAFAFA; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+            td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
+            .img-preview-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
         </style>
     </head>
     <body>
@@ -107,15 +106,16 @@ def obtener_sidebar_admin(es_superadmin=False):
             <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
             <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
             <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
-            {extra_menu}
+            EXTRA_MENU_PLACEHOLDER
             <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
         </div>
         <div class="main-content">
-            {{% block content %}{% endblock %}}
+            CONTENT_PLACEHOLDER
         </div>
     </body>
     </html>
     """
+    return plantilla_base.replace("EXTRA_MENU_PLACEHOLDER", extra_menu)
 
 @app.route("/")
 def inicio_raiz():
@@ -220,61 +220,61 @@ def catalogo_tienda(slug):
         </div>
         """
 
-    return render_template_string(f"""
+    plantilla_catalogo = """
     <!DOCTYPE html>
     <html lang="es">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{tienda.get('nombre')} - Catálogo Exclusivo</title>
+        <title>TIENDA_NOMBRE - Catálogo Exclusivo</title>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
-            :root {{ --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #FAFAFA; --surface: #FFFFFF; --text: #18181B; --muted: #71717A; --border: #E4E4E7; }}
-            * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
-            body {{ background: var(--bg); color: var(--text); }}
-            nav {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.2rem 2.5rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
-            .logo {{ font-size: 1.2rem; font-weight: 800; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; letter-spacing: -0.5px; }}
-            .hero {{ background: #18181B; color: white; padding: 3rem 1.5rem; text-align: center; margin: 0 auto; }}
-            .hero h1 {{ font-size: 2rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }}
-            .hero p {{ color: #A1A1AA; font-size: 0.95rem; }}
-            .container-main {{ max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem; }}
-            .category-section {{ margin-bottom: 3rem; }}
-            .category-section-title {{ font-size: 1.25rem; font-weight: 700; color: var(--text); margin-bottom: 1.2rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }}
-            .products-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; }}
-            .product-card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; position: relative; transition: transform 0.2s; }}
-            .product-card:hover {{ transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.04); }}
-            .img-wrapper {{ position: relative; width: 100%; height: 280px; background: #F4F4F5; overflow: hidden; }}
-            .img-wrapper img {{ width: 100%; height: 100%; object-fit: cover; }}
-            .card-content {{ padding: 1.2rem; display: flex; flex-direction: column; flex: 1; }}
-            .category-badge {{ font-size: 0.7rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }}
-            .badge-stock {{ font-size: 0.75rem; font-weight: 600; color: #047857; background: #ECFDF5; padding: 2px 8px; border-radius: 4px; }}
-            .stock-out {{ background: #FEF2F2; color: #B91C1C; }}
-            .product-title {{ font-size: 1.05rem; margin: 6px 0 4px; font-weight: 700; color: var(--text); }}
-            .price {{ font-size: 1.15rem; font-weight: 800; color: var(--text); }}
-            .btn-encargar {{ display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; transition: background 0.2s; }}
-            .btn-encargar:hover {{ background: var(--primary-hover); }}
-            .btn-disabled {{ background: #E4E4E7; color: #A1A1AA; cursor: not-allowed; }}
-            .modal-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; }}
-            .modal-box {{ background: white; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }}
-            .alert-toast {{ background: #065F46; color: white; padding: 12px; border-radius: 6px; max-width: 1200px; margin: 1.5rem auto 0; text-align: center; font-weight: 600; }}
+            :root { --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #FAFAFA; --surface: #FFFFFF; --text: #18181B; --muted: #71717A; --border: #E4E4E7; }
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+            body { background: var(--bg); color: var(--text); }
+            nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.2rem 2.5rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+            .logo { font-size: 1.2rem; font-weight: 800; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; letter-spacing: -0.5px; }
+            .hero { background: #18181B; color: white; padding: 3rem 1.5rem; text-align: center; margin: 0 auto; }
+            .hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+            .hero p { color: #A1A1AA; font-size: 0.95rem; }
+            .container-main { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem; }
+            .category-section { margin-bottom: 3rem; }
+            .category-section-title { font-size: 1.25rem; font-weight: 700; color: var(--text); margin-bottom: 1.2rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+            .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; }
+            .product-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; position: relative; transition: transform 0.2s; }
+            .product-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.04); }
+            .img-wrapper { position: relative; width: 100%; height: 280px; background: #F4F4F5; overflow: hidden; }
+            .img-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+            .card-content { padding: 1.2rem; display: flex; flex-direction: column; flex: 1; }
+            .category-badge { font-size: 0.7rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+            .badge-stock { font-size: 0.75rem; font-weight: 600; color: #047857; background: #ECFDF5; padding: 2px 8px; border-radius: 4px; }
+            .stock-out { background: #FEF2F2; color: #B91C1C; }
+            .product-title { font-size: 1.05rem; margin: 6px 0 4px; font-weight: 700; color: var(--text); }
+            .price { font-size: 1.15rem; font-weight: 800; color: var(--text); }
+            .btn-encargar { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; transition: background 0.2s; }
+            .btn-encargar:hover { background: var(--primary-hover); }
+            .btn-disabled { background: #E4E4E7; color: #A1A1AA; cursor: not-allowed; }
+            .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; }
+            .modal-box { background: white; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+            .alert-toast { background: #065F46; color: white; padding: 12px; border-radius: 6px; max-width: 1200px; margin: 1.5rem auto 0; text-align: center; font-weight: 600; }
         </style>
     </head>
     <body>
         <nav>
-            <a href="/tienda/{slug}" class="logo"><i class="fa-solid fa-gem"></i> {tienda.get('nombre')}</a>
+            <a href="/tienda/TIENDA_SLUG" class="logo"><i class="fa-solid fa-gem"></i> TIENDA_NOMBRE</a>
             <a href="/login" style="color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="fa-solid fa-lock"></i> Acceso Admin</a>
         </nav>
 
         <section class="hero">
             <h1>Colección Exclusiva</h1>
-            <p>Selección de prendas seleccionadas para {tienda.get('nombre')}.</p>
+            <p>Selección de prendas seleccionadas para TIENDA_NOMBRE.</p>
         </section>
 
-        {'<div class="alert-toast">¡Tu encargo ha sido registrado correctamente! Nos pondremos en contacto contigo.</div>' if msg_exito else ''}
+        ALERT_TOAST_PLACEHOLDER
 
         <div class="container-main">
-            {secciones_html if secciones_html else '<p style="text-align: center; color: var(--muted); padding: 4rem;">No hay prendas disponibles en este momento.</p>'}
+            SECCIONES_HTML_PLACEHOLDER
         </div>
 
         <div class="modal-overlay" id="modalEncargo">
@@ -282,8 +282,8 @@ def catalogo_tienda(slug):
                 <h3 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 4px; color: var(--text);">Solicitar Encargo</h3>
                 <p id="modalPrendaNombre" style="color: var(--primary); font-weight: 700; margin-bottom: 20px; font-size: 0.95rem;"></p>
                 <form action="/hacer-encargo" method="POST">
-                    <input type="hidden" name="tienda_id" value="{tienda_id}">
-                    <input type="hidden" name="slug" value="{slug}">
+                    <input type="hidden" name="tienda_id" value="TIENDA_ID">
+                    <input type="hidden" name="slug" value="TIENDA_SLUG">
                     <input type="hidden" name="producto_id" id="modalProductoId">
                     
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Nombre Completo</label>
@@ -311,18 +311,29 @@ def catalogo_tienda(slug):
         </div>
 
         <script>
-            function abrirModal(id, nombre, precio) {{
+            function abrirModal(id, nombre, precio) {
                 document.getElementById('modalProductoId').value = id;
                 document.getElementById('modalPrendaNombre').innerText = nombre + " — $" + precio + " MXN";
                 document.getElementById('modalEncargo').style.display = 'flex';
-            }}
-            function cerrarModal() {{
+            }
+            function cerrarModal() {
                 document.getElementById('modalEncargo').style.display = 'none';
-            }}
+            }
         </script>
     </body>
     </html>
-    """)
+    """
+
+    alerta_html = '<div class="alert-toast">¡Tu encargo ha sido registrado correctamente! Nos pondremos en contacto contigo.</div>' if msg_exito else ''
+    contenido_grid = secciones_html if secciones_html else '<p style="text-align: center; color: var(--muted); padding: 4rem;">No hay prendas disponibles en este momento.</p>'
+
+    html_final = plantilla_catalogo.replace("TIENDA_NOMBRE", tienda.get('nombre')) \
+                                  .replace("TIENDA_SLUG", slug) \
+                                  .replace("TIENDA_ID", str(tienda_id)) \
+                                  .replace("ALERT_TOAST_PLACEHOLDER", alerta_html) \
+                                  .replace("SECCIONES_HTML_PLACEHOLDER", contenido_grid)
+
+    return render_template_string(html_final)
 
 @app.route("/hacer-encargo", methods=["POST"])
 def hacer_encargo():
@@ -526,10 +537,10 @@ def admin_index():
     except:
         pass
 
-    content = f"""
+    content = """
         <div class="header-title">
             <h1>Panel Administrativo</h1>
-            <p style="color: var(--text-muted); font-size: 0.95rem;">Bienvenido a la administración de {nombre_tienda}.</p>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Bienvenido a la administración de TIENDA_NOMBRE.</p>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 700px;">
             <a href="/pedidos" style="text-decoration:none;">
@@ -545,9 +556,10 @@ def admin_index():
                 </div>
             </a>
         </div>
-    """
+    """.replace("TIENDA_NOMBRE", nombre_tienda)
+
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/ver-catalogo")
 @login_required
@@ -596,10 +608,12 @@ def nueva_tienda():
         except Exception as e:
             error = f"Error al registrar: {e}"
 
-    content = f"""
+    error_html = f'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">{error}</p>' if error else ''
+    
+    content = """
         <div class="header-title"><h1>Registrar Nueva Tienda</h1></div>
         <div class="table-box" style="max-width: 600px;">
-            {'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">' + error + '</p>' if error else ''}
+            ERROR_PLACEHOLDER
             <form method="POST">
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre Comercial del Local</label>
                 <input type="text" name="nombre" placeholder="Ej. Urban Style" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
@@ -619,9 +633,10 @@ def nueva_tienda():
                 </div>
             </form>
         </div>
-    """
+    """.replace("ERROR_PLACEHOLDER", error_html)
+
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/pedidos")
 @login_required
@@ -647,17 +662,20 @@ def ver_pedidos():
         </tr>
         """
 
-    content = f"""
+    rows_html = rows if rows else '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay encargos registrados.</td></tr>'
+    
+    content = """
         <div class="header-title"><h1>Encargos Recibidos</h1></div>
         <div class="table-box">
             <table>
                 <thead><tr><th>ID</th><th>Cliente</th><th>WhatsApp</th><th>Método de Pago</th><th>Notas</th><th>Estado</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay encargos registrados.</td></tr>'}</tbody>
+                <tbody>ROWS_PLACEHOLDER</tbody>
             </table>
         </div>
-    """
+    """.replace("ROWS_PLACEHOLDER", rows_html)
+
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/productos")
 @login_required
@@ -687,7 +705,9 @@ def ver_productos():
         </tr>
         """
 
-    content = f"""
+    rows_html = rows if rows else '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay productos registrados.</td></tr>'
+    
+    content = """
         <div class="header-title" style="display:flex; justify-content:space-between; align-items:center;">
             <h1>Inventario de Productos</h1>
             <a href="/admin/producto/nuevo" style="background:var(--primary); color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600; font-size:0.9rem;"><i class="fa-solid fa-plus"></i> Añadir Prenda</a>
@@ -695,12 +715,13 @@ def ver_productos():
         <div class="table-box">
             <table>
                 <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay productos registrados.</td></tr>'}</tbody>
+                <tbody>ROWS_PLACEHOLDER</tbody>
             </table>
         </div>
-    """
+    """.replace("ROWS_PLACEHOLDER", rows_html)
+
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/nuevo", methods=["GET", "POST"])
 @login_required
@@ -720,8 +741,6 @@ def nuevo_producto():
         precio = request.form.get("precio")
         stock = request.form.get("stock")
         categoria_id = request.form.get("categoria_id")
-        
-        # Aquí recibimos la imagen ya recortada enviada en Base64 desde el editor visual
         imagen_url = request.form.get("imagen_recortada")
         
         try:
@@ -738,11 +757,12 @@ def nuevo_producto():
             error = f"Error al guardar: {e}"
 
     options_cat = "".join([f"<option value='{c.get('id')}'>{c.get('nombre')}</option>" for c in categorias])
+    error_html = f'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">{error}</p>' if error else ''
     
-    content = f"""
+    content = """
         <div class="header-title"><h1>Nuevo Producto</h1></div>
         <div class="table-box" style="max-width: 600px;">
-            {'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">' + error + '</p>' if error else ''}
+            ERROR_PLACEHOLDER
             <form method="POST" id="formProducto">
                 <input type="hidden" name="imagen_recortada" id="imagen_recortada">
 
@@ -757,13 +777,12 @@ def nuevo_producto():
                 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Categoría</label>
                 <select name="categoria_id" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; background:white;">
-                    {options_cat}
+                    OPTIONS_CAT_PLACEHOLDER
                 </select>
                 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fotografía (Toma o Selecciona)</label>
                 <input type="file" id="inputFoto" accept="image/*" style="width:100%; padding:8px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
 
-                <!-- Contenedor del Editor / Recortador de Imagen -->
                 <div id="editorContainer" style="display:none; margin-bottom:20px; background:#18181B; padding:15px; border-radius:8px; text-align:center;">
                     <div style="max-height: 350px; overflow: hidden; margin-bottom: 12px;">
                         <img id="imagenParaRecortar" style="max-width: 100%;">
@@ -795,41 +814,41 @@ def nuevo_producto():
             const imgResultadoPrev = document.getElementById('imgResultadoPrev');
             const inputBase64 = document.getElementById('imagen_recortada');
 
-            inputFoto.addEventListener('change', function(e) {{
+            inputFoto.addEventListener('change', function(e) {
                 const files = e.target.files;
-                if (files && files.length > 0) {{
+                if (files && files.length > 0) {
                     const file = files[0];
                     const reader = new FileReader();
-                    reader.onload = function(event) {{
+                    reader.onload = function(event) {
                         imagenParaRecortar.src = event.target.result;
                         editorContainer.style.display = 'block';
                         vistaPreviaBox.style.display = 'none';
                         
-                        if (cropper) {{
+                        if (cropper) {
                             cropper.destroy();
-                        }}
-                        cropper = new Cropper(imagenParaRecortar, {{
-                            aspectRatio: 1, // Cuadrado perfecto ideal para ropa
+                        }
+                        cropper = new Cropper(imagenParaRecortar, {
+                            aspectRatio: 1,
                             viewMode: 1,
                             autoCropArea: 0.9,
-                        }});
-                    }};
+                        });
+                    };
                     reader.readAsDataURL(file);
-                }}
-            }});
+                }
+            });
 
-            function girarImagen() {{
-                if (cropper) {{
+            function girarImagen() {
+                if (cropper) {
                     cropper.rotate(90);
-                }}
-            }}
+                }
+            }
 
-            function confirmarRecorte() {{
-                if (cropper) {{
-                    const canvas = cropper.getCroppedCanvas({{
+            function confirmarRecorte() {
+                if (cropper) {
+                    const canvas = cropper.getCroppedCanvas({
                         width: 600,
                         height: 600
-                    }});
+                    });
                     const base64String = canvas.toDataURL('image/jpeg');
                     
                     inputBase64.value = base64String;
@@ -837,12 +856,13 @@ def nuevo_producto():
                     
                     editorContainer.style.display = 'none';
                     vistaPreviaBox.style.display = 'block';
-                }}
-            }}
+                }
+            }
         </script>
-    """
+    """.replace("ERROR_PLACEHOLDER", error_html).replace("OPTIONS_CAT_PLACEHOLDER", options_cat)
+
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
 @login_required
@@ -891,31 +911,32 @@ def editar_producto(id):
 
     options_cat = "".join([f"<option value='{c.get('id')}' {'selected' if str(c.get('id')) == str(producto.get('categoria_id')) else ''}>{c.get('nombre')}</option>" for c in categorias])
     foto_actual = producto.get('imagen_url') or producto.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+    error_html = f'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">{error}</p>' if error else ''
     
-    content = f"""
+    content = """
         <div class="header-title"><h1>Editar Producto</h1></div>
         <div class="table-box" style="max-width: 600px;">
-            {'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">' + error + '</p>' if error else ''}
+            ERROR_PLACEHOLDER
             <form method="POST">
                 <input type="hidden" name="imagen_recortada" id="imagen_recortada">
 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre de la Prenda</label>
-                <input type="text" name="nombre" value="{producto.get('nombre', '')}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                <input type="text" name="nombre" value="PROD_NOMBRE" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
                 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Precio (MXN)</label>
-                <input type="number" step="0.01" name="precio" value="{producto.get('precio', 0)}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                <input type="number" step="0.01" name="precio" value="PROD_PRECIO" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
                 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Stock Actual</label>
-                <input type="number" name="stock" value="{producto.get('stock', 0)}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                <input type="number" name="stock" value="PROD_STOCK" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
                 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Categoría</label>
                 <select name="categoria_id" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; background:white;">
-                    {options_cat}
+                    OPTIONS_CAT_PLACEHOLDER
                 </select>
                 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fotografía Actual</label>
                 <div style="margin-bottom: 12px;">
-                    <img src="{foto_actual}" style="width:80px; height:80px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
+                    <img src="FOTO_ACTUAL_PLACEHOLDER" style="width:80px; height:80px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
                 </div>
 
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Cambiar y Recortar Nueva Foto (Opcional)</label>
@@ -952,41 +973,41 @@ def editar_producto(id):
             const imgResultadoPrev = document.getElementById('imgResultadoPrev');
             const inputBase64 = document.getElementById('imagen_recortada');
 
-            inputFoto.addEventListener('change', function(e) {{
+            inputFoto.addEventListener('change', function(e) {
                 const files = e.target.files;
-                if (files && files.length > 0) {{
+                if (files && files.length > 0) {
                     const file = files[0];
                     const reader = new FileReader();
-                    reader.onload = function(event) {{
+                    reader.onload = function(event) {
                         imagenParaRecortar.src = event.target.result;
                         editorContainer.style.display = 'block';
                         vistaPreviaBox.style.display = 'none';
                         
-                        if (cropper) {{
+                        if (cropper) {
                             cropper.destroy();
-                        }}
-                        cropper = new Cropper(imagenParaRecortar, {{
+                        }
+                        cropper = new Cropper(imagenParaRecortar, {
                             aspectRatio: 1,
                             viewMode: 1,
                             autoCropArea: 0.9,
-                        }});
-                    }};
+                        });
+                    };
                     reader.readAsDataURL(file);
-                }}
-            }});
+                }
+            });
 
-            function girarImagen() {{
-                if (cropper) {{
+            function girarImagen() {
+                if (cropper) {
                     cropper.rotate(90);
-                }}
-            }}
+                }
+            }
 
-            function confirmarRecorte() {{
-                if (cropper) {{
-                    const canvas = cropper.getCroppedCanvas({{
+            function confirmarRecorte() {
+                if (cropper) {
+                    const canvas = cropper.getCroppedCanvas({
                         width: 600,
                         height: 600
-                    }});
+                    });
                     const base64String = canvas.toDataURL('image/jpeg');
                     
                     inputBase64.value = base64String;
@@ -994,12 +1015,18 @@ def editar_producto(id):
                     
                     editorContainer.style.display = 'none';
                     vistaPreviaBox.style.display = 'block';
-                }}
-            }}
+                }
+            }
         </script>
-    """
+    """.replace("ERROR_PLACEHOLDER", error_html) \
+       .replace("PROD_NOMBRE", producto.get('nombre', '')) \
+       .replace("PROD_PRECIO", str(producto.get('precio', 0))) \
+       .replace("PROD_STOCK", str(producto.get('stock', 0))) \
+       .replace("OPTIONS_CAT_PLACEHOLDER", options_cat) \
+       .replace("FOTO_ACTUAL_PLACEHOLDER", foto_actual)
+
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/eliminar/<int:id>")
 @login_required
