@@ -67,6 +67,9 @@ def obtener_sidebar_admin(es_superadmin=False):
         <title>Panel de Control - Catálogo Digital</title>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <!-- Librería Cropper.js para recortar y editar fotos -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
         <style>
             :root {{ --sidebar-bg: #18181B; --sidebar-hover: #27272A; --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #F4F4F5; --surface: #FFFFFF; --text-main: #18181B; --text-muted: #71717A; --border: #E4E4E7; --danger: #EF4444; --radius: 8px; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
@@ -108,7 +111,7 @@ def obtener_sidebar_admin(es_superadmin=False):
             <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
         </div>
         <div class="main-content">
-            {{% block content %}}{{% endblock %}}
+            {{% block content %}{% endblock %}}
         </div>
     </body>
     </html>
@@ -543,7 +546,8 @@ def admin_index():
             </a>
         </div>
     """
-    return render_template_string(obtener_sidebar_admin(es_superadmin=False).replace("{% block content %}{% endblock %}", content))
+    is_super = session.get("is_superadmin", False)
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
 
 @app.route("/admin/ver-catalogo")
 @login_required
@@ -560,7 +564,6 @@ def ver_catalogo_admin():
 
 @app.route("/admin/tienda/nueva", methods=["GET", "POST"])
 def nueva_tienda():
-    # Permitir acceso solo si eres superadmin o administrador logueado
     if not session.get("logged_in"):
         return redirect(url_for("login"))
         
@@ -718,13 +721,8 @@ def nuevo_producto():
         stock = request.form.get("stock")
         categoria_id = request.form.get("categoria_id")
         
-        imagen_file = request.files.get("foto_producto")
-        imagen_url = None
-        if imagen_file and imagen_file.filename != '':
-            file_bytes = imagen_file.read()
-            encoded_str = base64.b64encode(file_bytes).decode('utf-8')
-            mime_type = imagen_file.mimetype or 'image/png'
-            imagen_url = f"data:{mime_type};base64,{encoded_str}"
+        # Aquí recibimos la imagen ya recortada enviada en Base64 desde el editor visual
+        imagen_url = request.form.get("imagen_recortada")
         
         try:
             supabase.table("productos").insert({
@@ -745,7 +743,9 @@ def nuevo_producto():
         <div class="header-title"><h1>Nuevo Producto</h1></div>
         <div class="table-box" style="max-width: 600px;">
             {'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">' + error + '</p>' if error else ''}
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" id="formProducto">
+                <input type="hidden" name="imagen_recortada" id="imagen_recortada">
+
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre de la Prenda</label>
                 <input type="text" name="nombre" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
                 
@@ -760,15 +760,86 @@ def nuevo_producto():
                     {options_cat}
                 </select>
                 
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fotografía</label>
-                <input type="file" name="foto_producto" accept="image/*" style="width:100%; padding:8px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px;" required>
+                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fotografía (Toma o Selecciona)</label>
+                <input type="file" id="inputFoto" accept="image/*" style="width:100%; padding:8px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+
+                <!-- Contenedor del Editor / Recortador de Imagen -->
+                <div id="editorContainer" style="display:none; margin-bottom:20px; background:#18181B; padding:15px; border-radius:8px; text-align:center;">
+                    <div style="max-height: 350px; overflow: hidden; margin-bottom: 12px;">
+                        <img id="imagenParaRecortar" style="max-width: 100%;">
+                    </div>
+                    <div style="display:flex; gap:10px; justify-content:center;">
+                        <button type="button" onclick="girarImagen()" style="background:#3F3F46; color:white; border:none; padding:8px 14px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-rotate-right"></i> Girar</button>
+                        <button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-check"></i> Aplicar Recorte</button>
+                    </div>
+                </div>
+
+                <div id="vistaPreviaBox" style="display:none; margin-bottom:20px; text-align:center;">
+                    <p style="font-size:0.8rem; color:#047857; font-weight:700; margin-bottom:6px;"><i class="fa-solid fa-circle-check"></i> Imagen recortada y lista</p>
+                    <img id="imgResultadoPrev" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
+                </div>
                 
                 <div style="display:flex; gap:10px;">
-                    <button type="submit" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Guardar</button>
+                    <button type="submit" id="btnGuardar" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Guardar Producto</button>
                     <a href="/productos" style="background:#F4F4F5; color:var(--text-main); padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
                 </div>
             </form>
         </div>
+
+        <script>
+            let cropper = null;
+            const inputFoto = document.getElementById('inputFoto');
+            const editorContainer = document.getElementById('editorContainer');
+            const imagenParaRecortar = document.getElementById('imagenParaRecortar');
+            const vistaPreviaBox = document.getElementById('vistaPreviaBox');
+            const imgResultadoPrev = document.getElementById('imgResultadoPrev');
+            const inputBase64 = document.getElementById('imagen_recortada');
+
+            inputFoto.addEventListener('change', function(e) {{
+                const files = e.target.files;
+                if (files && files.length > 0) {{
+                    const file = files[0];
+                    const reader = new FileReader();
+                    reader.onload = function(event) {{
+                        imagenParaRecortar.src = event.target.result;
+                        editorContainer.style.display = 'block';
+                        vistaPreviaBox.style.display = 'none';
+                        
+                        if (cropper) {{
+                            cropper.destroy();
+                        }}
+                        cropper = new Cropper(imagenParaRecortar, {{
+                            aspectRatio: 1, // Cuadrado perfecto ideal para ropa
+                            viewMode: 1,
+                            autoCropArea: 0.9,
+                        }});
+                    }};
+                    reader.readAsDataURL(file);
+                }}
+            }});
+
+            function girarImagen() {{
+                if (cropper) {{
+                    cropper.rotate(90);
+                }}
+            }}
+
+            function confirmarRecorte() {{
+                if (cropper) {{
+                    const canvas = cropper.getCroppedCanvas({{
+                        width: 600,
+                        height: 600
+                    }});
+                    const base64String = canvas.toDataURL('image/jpeg');
+                    
+                    inputBase64.value = base64String;
+                    imgResultadoPrev.src = base64String;
+                    
+                    editorContainer.style.display = 'none';
+                    vistaPreviaBox.style.display = 'block';
+                }}
+            }}
+        </script>
     """
     is_super = session.get("is_superadmin", False)
     return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
@@ -800,12 +871,9 @@ def editar_producto(id):
         stock = request.form.get("stock")
         categoria_id = request.form.get("categoria_id")
         
-        imagen_file = request.files.get("foto_producto")
-        if imagen_file and imagen_file.filename != '':
-            file_bytes = imagen_file.read()
-            encoded_str = base64.b64encode(file_bytes).decode('utf-8')
-            mime_type = imagen_file.mimetype or 'image/png'
-            imagen_url = f"data:{mime_type};base64,{encoded_str}"
+        nueva_imagen = request.form.get("imagen_recortada")
+        if nueva_imagen and nueva_imagen != "":
+            imagen_url = nueva_imagen
         else:
             imagen_url = producto.get('imagen_url') or producto.get('imagen')
         
@@ -822,12 +890,15 @@ def editar_producto(id):
             error = f"Error al actualizar: {e}"
 
     options_cat = "".join([f"<option value='{c.get('id')}' {'selected' if str(c.get('id')) == str(producto.get('categoria_id')) else ''}>{c.get('nombre')}</option>" for c in categorias])
+    foto_actual = producto.get('imagen_url') or producto.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
     
     content = f"""
         <div class="header-title"><h1>Editar Producto</h1></div>
         <div class="table-box" style="max-width: 600px;">
             {'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">' + error + '</p>' if error else ''}
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST">
+                <input type="hidden" name="imagen_recortada" id="imagen_recortada">
+
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre de la Prenda</label>
                 <input type="text" name="nombre" value="{producto.get('nombre', '')}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
                 
@@ -842,8 +913,28 @@ def editar_producto(id):
                     {options_cat}
                 </select>
                 
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Cambiar Foto (Opcional)</label>
-                <input type="file" name="foto_producto" accept="image/*" style="width:100%; padding:8px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px;">
+                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fotografía Actual</label>
+                <div style="margin-bottom: 12px;">
+                    <img src="{foto_actual}" style="width:80px; height:80px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
+                </div>
+
+                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Cambiar y Recortar Nueva Foto (Opcional)</label>
+                <input type="file" id="inputFoto" accept="image/*" style="width:100%; padding:8px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;">
+
+                <div id="editorContainer" style="display:none; margin-bottom:20px; background:#18181B; padding:15px; border-radius:8px; text-align:center;">
+                    <div style="max-height: 350px; overflow: hidden; margin-bottom: 12px;">
+                        <img id="imagenParaRecortar" style="max-width: 100%;">
+                    </div>
+                    <div style="display:flex; gap:10px; justify-content:center;">
+                        <button type="button" onclick="girarImagen()" style="background:#3F3F46; color:white; border:none; padding:8px 14px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-rotate-right"></i> Girar</button>
+                        <button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-check"></i> Aplicar Recorte</button>
+                    </div>
+                </div>
+
+                <div id="vistaPreviaBox" style="display:none; margin-bottom:20px; text-align:center;">
+                    <p style="font-size:0.8rem; color:#047857; font-weight:700; margin-bottom:6px;"><i class="fa-solid fa-circle-check"></i> Nueva foto lista</p>
+                    <img id="imgResultadoPrev" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
+                </div>
                 
                 <div style="display:flex; gap:10px;">
                     <button type="submit" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Actualizar</button>
@@ -851,6 +942,61 @@ def editar_producto(id):
                 </div>
             </form>
         </div>
+
+        <script>
+            let cropper = null;
+            const inputFoto = document.getElementById('inputFoto');
+            const editorContainer = document.getElementById('editorContainer');
+            const imagenParaRecortar = document.getElementById('imagenParaRecortar');
+            const vistaPreviaBox = document.getElementById('vistaPreviaBox');
+            const imgResultadoPrev = document.getElementById('imgResultadoPrev');
+            const inputBase64 = document.getElementById('imagen_recortada');
+
+            inputFoto.addEventListener('change', function(e) {{
+                const files = e.target.files;
+                if (files && files.length > 0) {{
+                    const file = files[0];
+                    const reader = new FileReader();
+                    reader.onload = function(event) {{
+                        imagenParaRecortar.src = event.target.result;
+                        editorContainer.style.display = 'block';
+                        vistaPreviaBox.style.display = 'none';
+                        
+                        if (cropper) {{
+                            cropper.destroy();
+                        }}
+                        cropper = new Cropper(imagenParaRecortar, {{
+                            aspectRatio: 1,
+                            viewMode: 1,
+                            autoCropArea: 0.9,
+                        }});
+                    }};
+                    reader.readAsDataURL(file);
+                }}
+            }});
+
+            function girarImagen() {{
+                if (cropper) {{
+                    cropper.rotate(90);
+                }}
+            }}
+
+            function confirmarRecorte() {{
+                if (cropper) {{
+                    const canvas = cropper.getCroppedCanvas({{
+                        width: 600,
+                        height: 600
+                    }});
+                    const base64String = canvas.toDataURL('image/jpeg');
+                    
+                    inputBase64.value = base64String;
+                    imgResultadoPrev.src = base64String;
+                    
+                    editorContainer.style.display = 'none';
+                    vistaPreviaBox.style.display = 'block';
+                }}
+            }}
+        </script>
     """
     is_super = session.get("is_superadmin", False)
     return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
