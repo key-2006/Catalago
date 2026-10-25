@@ -53,63 +53,67 @@ PLANTILLA_SUSPENDIDO = """
 </html>
 """
 
-ADMIN_BASE_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - Catálogo Digital</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root { --sidebar-bg: #18181B; --sidebar-hover: #27272A; --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #F4F4F5; --surface: #FFFFFF; --text-main: #18181B; --text-muted: #71717A; --border: #E4E4E7; --danger: #EF4444; --radius: 8px; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
-        body { display: flex; min-height: 100vh; background-color: var(--bg); color: var(--text-main); }
-        .sidebar { width: 260px; background-color: var(--sidebar-bg); padding: 24px 16px; color: #FAFAFA; display: flex; flex-direction: column; gap: 6px; }
-        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 20px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }
-        .brand i { font-size: 1.5rem; color: #93C5FD; }
-        .brand h2 { font-size: 1.1rem; font-weight: 700; }
-        .brand p { font-size: 0.75rem; color: #A1A1AA; text-transform: uppercase; }
-        .nav-btn { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 6px; color: #A1A1AA; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }
-        .nav-btn:hover, .nav-btn.active { background-color: var(--sidebar-hover); color: #FFFFFF; }
-        .nav-btn i { font-size: 1.1rem; width: 20px; text-align: center; }
-        .nav-btn.logout-link { margin-top: auto; background: rgba(239, 68, 68, 0.15); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.2); }
-        .nav-btn.logout-link:hover { background: var(--danger); color: white; }
-        .main-content { flex: 1; padding: 32px; overflow-y: auto; }
-        .header-title { margin-bottom: 24px; }
-        .header-title h1 { font-size: 1.75rem; font-weight: 800; color: var(--text-main); }
-        .table-box { background: var(--surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-        table { width: 100%; border-collapse: collapse; text-align: left; }
-        th { padding: 12px 16px; background: #FAFAFA; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-        td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
-        .img-preview-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
-    </style>
-</head>
-<body>
-    <div class="sidebar">
-        <div class="brand">
-            <i class="fa-solid fa-store"></i>
-            <div>
-                <h2>Panel Local</h2>
-                <p>Gestión Exclusiva</p>
+def obtener_sidebar_admin(es_superadmin=False):
+    extra_menu = ""
+    if es_superadmin:
+        extra_menu = '<a href="/admin/tienda/nueva" class="nav-btn" style="background: rgba(30, 58, 138, 0.2); color: #93C5FD;"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>'
+    
+    return f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Panel de Control - Catálogo Digital</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            :root {{ --sidebar-bg: #18181B; --sidebar-hover: #27272A; --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #F4F4F5; --surface: #FFFFFF; --text-main: #18181B; --text-muted: #71717A; --border: #E4E4E7; --danger: #EF4444; --radius: 8px; }}
+            * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
+            body {{ display: flex; min-height: 100vh; background-color: var(--bg); color: var(--text-main); }}
+            .sidebar {{ width: 260px; background-color: var(--sidebar-bg); padding: 24px 16px; color: #FAFAFA; display: flex; flex-direction: column; gap: 6px; }}
+            .brand {{ display: flex; align-items: center; gap: 12px; padding: 0 12px 20px 12px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px; }}
+            .brand i {{ font-size: 1.5rem; color: #93C5FD; }}
+            .brand h2 {{ font-size: 1.1rem; font-weight: 700; }}
+            .brand p {{ font-size: 0.75rem; color: #A1A1AA; text-transform: uppercase; }}
+            .nav-btn {{ display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 6px; color: #A1A1AA; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: all 0.2s; }}
+            .nav-btn:hover, .nav-btn.active {{ background-color: var(--sidebar-hover); color: #FFFFFF; }}
+            .nav-btn i {{ font-size: 1.1rem; width: 20px; text-align: center; }}
+            .nav-btn.logout-link {{ margin-top: auto; background: rgba(239, 68, 68, 0.15); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.2); }}
+            .nav-btn.logout-link:hover {{ background: var(--danger); color: white; }}
+            .main-content {{ flex: 1; padding: 32px; overflow-y: auto; }}
+            .header-title {{ margin-bottom: 24px; }}
+            .header-title h1 {{ font-size: 1.75rem; font-weight: 800; color: var(--text-main); }}
+            .table-box {{ background: var(--surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
+            table {{ width: 100%; border-collapse: collapse; text-align: left; }}
+            th {{ padding: 12px 16px; background: #FAFAFA; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid var(--border); }}
+            td {{ padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }}
+            .img-preview-thumb {{ width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }}
+        </style>
+    </head>
+    <body>
+        <div class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-store"></i>
+                <div>
+                    <h2>Panel Local</h2>
+                    <p>Gestión Exclusiva</p>
+                </div>
             </div>
+            <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
+            <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
+            <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
+            <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
+            {extra_menu}
+            <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
         </div>
-        <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
-        <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
-        <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
-        <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
-        <a href="/admin/tienda/nueva" class="nav-btn" style="background: rgba(30, 58, 138, 0.2); color: #93C5FD;"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>
-        <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
-    </div>
-    <div class="main-content">
-        {% block content %}{% endblock %}
-    </div>
-</body>
-</html>
-"""
+        <div class="main-content">
+            {{% block content %}}{{% endblock %}}
+        </div>
+    </body>
+    </html>
+    """
 
-# Al abrir la página principal (la raíz /), ahora manda directo al login en lugar del catálogo
 @app.route("/")
 def inicio_raiz():
     return redirect(url_for("login"))
@@ -539,7 +543,7 @@ def admin_index():
             </a>
         </div>
     """
-    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=False).replace("{% block content %}{% endblock %}", content))
 
 @app.route("/admin/ver-catalogo")
 @login_required
@@ -555,8 +559,11 @@ def ver_catalogo_admin():
     return redirect(url_for("admin_index"))
 
 @app.route("/admin/tienda/nueva", methods=["GET", "POST"])
-@login_required
 def nueva_tienda():
+    # Permitir acceso solo si eres superadmin o administrador logueado
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+        
     error = None
     if request.method == "POST":
         nombre_tienda = request.form.get("nombre")
@@ -610,7 +617,8 @@ def nueva_tienda():
             </form>
         </div>
     """
-    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+    is_super = session.get("is_superadmin", False)
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
 
 @app.route("/pedidos")
 @login_required
@@ -645,7 +653,8 @@ def ver_pedidos():
             </table>
         </div>
     """
-    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+    is_super = session.get("is_superadmin", False)
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
 
 @app.route("/productos")
 @login_required
@@ -687,7 +696,8 @@ def ver_productos():
             </table>
         </div>
     """
-    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+    is_super = session.get("is_superadmin", False)
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
 
 @app.route("/admin/producto/nuevo", methods=["GET", "POST"])
 @login_required
@@ -760,7 +770,8 @@ def nuevo_producto():
             </form>
         </div>
     """
-    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+    is_super = session.get("is_superadmin", False)
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
 
 @app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
 @login_required
@@ -841,7 +852,8 @@ def editar_producto(id):
             </form>
         </div>
     """
-    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+    is_super = session.get("is_superadmin", False)
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("{% block content %}{% endblock %}", content))
 
 @app.route("/admin/producto/eliminar/<int:id>")
 @login_required
