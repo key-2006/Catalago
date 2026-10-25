@@ -39,7 +39,7 @@ PLANTILLA_SUSPENDIDO = """
         .icon-box { background: rgba(239, 68, 68, 0.15); color: #EF4444; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 2.2rem; border: 2px solid rgba(239, 68, 68, 0.3); }
         h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 12px; color: #FAFAFA; }
         p { color: #A1A1AA; font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px; }
-        .badge-status { background: #3F3F46; color: #E4E4E7; padding: 8px 16px; border-radius: 99px; font-weight: 600; font-size: 0.85rem; display: inline-block; }
+        .badge-status { background: #3F3F46; color: #CBD5E1; padding: 8px 16px; border-radius: 99px; font-weight: 600; font-size: 0.85rem; display: inline-block; }
     </style>
 </head>
 <body>
@@ -98,6 +98,7 @@ ADMIN_BASE_TEMPLATE = """
         <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
         <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
         <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
+        <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
         <a href="/admin/tienda/nueva" class="nav-btn" style="background: rgba(30, 58, 138, 0.2); color: #93C5FD;"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>
         <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
     </div>
@@ -444,6 +445,19 @@ def admin_index():
     """
     return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
 
+@app.route("/admin/ver-catalogo")
+@login_required
+def ver_catalogo_admin():
+    tienda_id = session.get("tienda_id")
+    try:
+        res = supabase.table("tiendas").select("slug").eq("id", tienda_id).execute()
+        if res.data:
+            slug = res.data[0].get("slug")
+            return redirect(url_for("catalogo_tienda", slug=slug))
+    except:
+        pass
+    return redirect(url_for("admin_index"))
+
 @app.route("/admin/tienda/nueva", methods=["GET", "POST"])
 @login_required
 def nueva_tienda():
@@ -455,7 +469,6 @@ def nueva_tienda():
         admin_pass = request.form.get("admin_pass")
         
         try:
-            # 1. Insertar la nueva tienda
             res_t = supabase.table("tiendas").insert({
                 "nombre": nombre_tienda,
                 "slug": slug_tienda,
@@ -465,14 +478,14 @@ def nueva_tienda():
             if res_t.data:
                 nueva_tienda_id = res_t.data[0].get("id")
                 
-                # 2. Crear su usuario administrador asociado
                 supabase.table("administradores").insert({
                     "username": admin_user,
                     "password": admin_pass,
                     "tienda_id": nueva_tienda_id
                 }).execute()
                 
-                return redirect(url_for("admin_index"))
+                # Redirige directamente al catálogo público de la nueva tienda recién creada
+                return redirect(url_for("catalogo_tienda", slug=slug_tienda))
             else:
                 error = "No se pudo crear la tienda en la base de datos."
         except Exception as e:
@@ -496,7 +509,7 @@ def nueva_tienda():
                 <input type="password" name="admin_pass" style="width:100%; padding:10px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px;" required>
                 
                 <div style="display:flex; gap:10px;">
-                    <button type="submit" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Crear Tienda</button>
+                    <button type="submit" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Crear Tienda e Ir al Catálogo</button>
                     <a href="/admin" style="background:#F4F4F5; color:var(--text-main); padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
                 </div>
             </form>
@@ -711,7 +724,6 @@ def editar_producto(id):
             <form method="POST" enctype="multipart/form-data">
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre de la Prenda</label>
                 <input type="text" name="nombre" value="{producto.get('nombre', '')}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Precio (MXN)</label>
                 <input type="number" step="0.01" name="precio" value="{producto.get('precio', 0)}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
                 
