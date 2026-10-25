@@ -354,6 +354,12 @@ def login():
         user_input = request.form.get("username")
         pass_input = request.form.get("password")
         
+        # Acceso directo para ti como Superadministrador maestro
+        if user_input == "super_master" and pass_input == "master2026":
+            session["logged_in"] = True
+            session["is_superadmin"] = True
+            return redirect(url_for("super_admin_panel"))
+        
         try:
             res = supabase.table("administradores").select("*").eq("username", user_input).execute()
             
@@ -363,6 +369,7 @@ def login():
                     session["logged_in"] = True
                     session["tienda_id"] = admin.get("tienda_id")
                     session["username"] = admin.get("username")
+                    session.pop("is_superadmin", None)
                     return redirect(url_for("admin_index"))
             
             error = "Usuario o contraseña incorrectos."
@@ -392,7 +399,7 @@ def login():
     <body>
         <div class="login-card">
             <h2>Panel de Acceso</h2>
-            <p class="sub">Gestión interna del local</p>
+            <p class="sub">Gestión interna del local o plataforma</p>
             {% if error %}<p style="color:#FCA5A5; text-align:center; margin-bottom:12px; font-size:0.85rem;">{{ error }}</p>{% endif %}
             <form method="POST">
                 <label>Usuario</label>
@@ -410,6 +417,95 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+@app.route("/super-admin")
+def super_admin_panel():
+    if not session.get("logged_in") or not session.get("is_superadmin"):
+        return redirect(url_for("login"))
+    
+    tiendas = []
+    try:
+        res = supabase.table("tiendas").select("*").order("id").execute()
+        tiendas = res.data if res.data else []
+    except Exception as e:
+        pass
+
+    rows = ""
+    for t in tiendas:
+        t_id = t.get('id')
+        t_nombre = t.get('nombre')
+        t_slug = t.get('slug')
+        activa = t.get('subscripcion_activa', True)
+        
+        status_badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Al Corriente (Activa)</span>' if activa else '<span style="background:#FEF2F2; color:#B91C1C; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Suspendida (Pendiente de Pago)</span>'
+        btn_accion = f'<a href="/super-admin/cambiar-estatus/{t_id}" style="background:{"#B91C1C" if activa else "#047857"}; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;">{"Suspender" if activa else "Activar"}</a>'
+        
+        rows += f"""
+        <tr>
+            <td><strong>#{t_id}</strong></td>
+            <td><strong>{t_nombre}</strong></td>
+            <td><code>/tienda/{t_slug}</code></td>
+            <td>{status_badge}</td>
+            <td>{btn_accion}</td>
+        </tr>
+        """
+
+    return render_template_string(f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Control Maestro de Tiendas - Plataforma</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
+            body {{ background: #F4F4F5; color: #18181B; padding: 40px; }}
+            .container {{ max-width: 1000px; margin: 0 auto; }}
+            .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }}
+            .table-box {{ background: white; padding: 24px; border-radius: 8px; border: 1px solid #E4E4E7; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
+            table {{ width: 100%; border-collapse: collapse; text-align: left; }}
+            th {{ padding: 12px 16px; background: #FAFAFA; color: #71717A; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #E4E4E7; }}
+            td {{ padding: 16px; border-bottom: 1px solid #E4E4E7; font-size: 0.9rem; vertical-align: middle; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <div>
+                    <h1 style="font-size: 1.8rem; font-weight: 800;"><i class="fa-solid fa-shield-halved" style="color:#1E3A8A;"></i> Control Maestro de Tiendas</h1>
+                    <p style="color: #71717A; font-size: 0.9rem;">Monitorea el estatus de suscripciones y pagos de todos los locales registrados.</p>
+                </div>
+                <a href="/logout" style="background:#EF4444; color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600; font-size:0.9rem;"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
+            </div>
+            
+            <div class="table-box">
+                <table>
+                    <thead><tr><th>ID</th><th>Nombre de la Tienda</th><th>URL / Slug</th><th>Estatus de Suscripción</th><th>Acciones de Pago</th></tr></thead>
+                    <tbody>{rows if rows else '<tr><td colspan="5" style="text-align:center; color:#71717A;">No hay tiendas registradas.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>
+    </body>
+    </html>
+    """)
+
+@app.route("/super-admin/cambiar-estatus/<int:id>")
+def cambiar_estatus_tienda(id):
+    if not session.get("logged_in") or not session.get("is_superadmin"):
+        return redirect(url_for("login"))
+    
+    try:
+        res = supabase.table("tiendas").select("subscripcion_activa").eq("id", id).execute()
+        if res.data:
+            estado_actual = res.data[0].get("subscripcion_activa", True)
+            nuevo_estado = not estado_actual
+            supabase.table("tiendas").update({"subscripcion_activa": nuevo_estado}).eq("id", id).execute()
+    except Exception as e:
+        pass
+    
+    return redirect(url_for("super_admin_panel"))
 
 @app.route("/admin")
 @login_required
@@ -484,7 +580,6 @@ def nueva_tienda():
                     "tienda_id": nueva_tienda_id
                 }).execute()
                 
-                # Redirige directamente al catálogo público de la nueva tienda recién creada
                 return redirect(url_for("catalogo_tienda", slug=slug_tienda))
             else:
                 error = "No se pudo crear la tienda en la base de datos."
@@ -724,6 +819,7 @@ def editar_producto(id):
             <form method="POST" enctype="multipart/form-data">
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre de la Prenda</label>
                 <input type="text" name="nombre" value="{producto.get('nombre', '')}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                
                 <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Precio (MXN)</label>
                 <input type="number" step="0.01" name="precio" value="{producto.get('precio', 0)}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
                 
