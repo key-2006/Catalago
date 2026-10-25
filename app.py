@@ -7,7 +7,7 @@ app.secret_key = "clave_secreta_multiusuario_tiendas_123"
 
 # Conexión directa con Supabase
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-..."  # Asegúrate de poner tu clave anon completa aquí
+SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"  # Asegúrate de poner tu clave anon completa aquí
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
