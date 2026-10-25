@@ -109,9 +109,10 @@ ADMIN_BASE_TEMPLATE = """
 </html>
 """
 
+# Al abrir la página principal (la raíz /), ahora manda directo al login en lugar del catálogo
 @app.route("/")
 def inicio_raiz():
-    return redirect(url_for("catalogo_tienda", slug="vibe-apparel"))
+    return redirect(url_for("login"))
 
 @app.route("/tienda/<slug>")
 def catalogo_tienda(slug):
@@ -354,7 +355,6 @@ def login():
         user_input = request.form.get("username")
         pass_input = request.form.get("password")
         
-        # Acceso directo para ti como Superadministrador maestro
         if user_input == "super_master" and pass_input == "master2026":
             session["logged_in"] = True
             session["is_superadmin"] = True
