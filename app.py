@@ -7,7 +7,7 @@ app.secret_key = "clave_secreta_multiusuario_tiendas_123"
 
 # Conexión directa con Supabase
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"  # Asegúrate de poner tu clave anon completa aquí
+SUPABASE_KEY = "PEGA_AQUÍ_TU_SUPABASE_KEY_COMPLETA"  # Asegúrate de poner tu clave anon completa aquí
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -119,7 +119,6 @@ def catalogo_tienda(slug):
     try:
         res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
         
-        # Crear la tienda automáticamente si no existe en la base de datos
         if not res_tienda.data:
             supabase.table("tiendas").insert({
                 "id": 1,
@@ -214,8 +213,6 @@ def catalogo_tienda(slug):
             nav {{ background: var(--surface); border-bottom: 1px solid #E2E8F0; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
             .logo {{ font-size: 1.3rem; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }}
             .hero {{ background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; padding: 2.5rem 1.5rem; text-align: center; margin: 1.5rem auto; max-width: 1200px; border-radius: 16px; }}
-            .payments-bar {{ background: #FFFFFF; border: 1px solid #E2E8F0; max-width: 1200px; margin: 0 auto 1.5rem; padding: 1rem 1.5rem; border-radius: 12px; display: flex; align-items: center; justify-content: space-around; flex-wrap: wrap; gap: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
-            .payment-item {{ display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.9rem; color: #475569; }}
             .layout {{ max-width: 1200px; margin: 0 auto 2rem; padding: 0 1.5rem; display: grid; grid-template-columns: 240px 1fr; gap: 2rem; }}
             .sidebar-cat {{ background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid #E2E8F0; height: fit-content; }}
             .cat-list {{ list-style: none; margin-top: 1rem; }}
@@ -249,12 +246,6 @@ def catalogo_tienda(slug):
             <p>Explora nuestras prendas disponibles y realiza tu encargo en línea fácil y rápido.</p>
         </section>
 
-        <div class="payments-bar">
-            <div class="payment-item"><i class="fa-solid fa-money-bill-wave" style="color:#10B981;"></i> Efectivo al Entregar</div>
-            <div class="payment-item"><i class="fa-solid fa-credit-card" style="color:#4F46E5;"></i> Tarjetas de Débito / Crédito</div>
-            <div class="payment-item"><i class="fa-solid fa-mobile-screen-button" style="color:#7C3AED;"></i> Transferencia SPEI</div>
-        </div>
-
         {'<div class="alert-toast">¡Tu encargo ha sido enviado con éxito! Te contactaremos pronto.</div>' if msg_exito else ''}
 
         <div class="layout">
@@ -282,13 +273,6 @@ def catalogo_tienda(slug):
                     
                     <label style="font-size: 0.85rem; font-weight: 600;">Teléfono / WhatsApp de contacto:</label>
                     <input type="tel" name="telefono" style="width:100%; padding:10px; margin:6px 0 12px; border:1px solid #CBD5E1; border-radius:8px;" required>
-                    
-                    <label style="font-size: 0.85rem; font-weight: 600;">Método de Pago:</label>
-                    <select name="metodo_pago" style="width:100%; padding:10px; margin:6px 0 12px; border:1px solid #CBD5E1; border-radius:8px;" required>
-                        <option value="Efectivo al Entregar">💵 Efectivo al Entregar</option>
-                        <option value="Transferencia SPEI">📱 Transferencia SPEI</option>
-                        <option value="Tarjeta de Débito/Crédito">💳 Tarjeta de Débito / Crédito</option>
-                    </select>
 
                     <label style="font-size: 0.85rem; font-weight: 600;">Notas o Talla deseada:</label>
                     <textarea name="notas" rows="3" style="width:100%; padding:10px; margin:6px 0 12px; border:1px solid #CBD5E1; border-radius:8px;"></textarea>
@@ -322,7 +306,6 @@ def hacer_encargo():
     producto_id = request.form.get("producto_id")
     nombre_cliente = request.form.get("nombre_cliente")
     telefono = request.form.get("telefono")
-    metodo_pago = request.form.get("metodo_pago")
     notas = request.form.get("notas")
     
     try:
@@ -330,7 +313,6 @@ def hacer_encargo():
             "tienda_id": tienda_id,
             "cliente": nombre_cliente,
             "telefono": telefono,
-            "metodo_pago": metodo_pago,
             "notas": notas,
             "producto_id": producto_id,
             "estado": "Pendiente"
@@ -460,7 +442,6 @@ def ver_pedidos():
             <td><strong>#{ped.get('id')}</strong></td>
             <td>{ped.get('cliente') or 'Cliente'}</td>
             <td><a href="https://wa.me/{ped.get('telefono')}" target="_blank" style="color:#25D366; font-weight:700;"><i class="fa-brands fa-whatsapp"></i> {ped.get('telefono')}</a></td>
-            <td><span style="background:#EEF2FF; color:#4F46E5; padding:4px 8px; border-radius:6px; font-weight:600;">{ped.get('metodo_pago') or 'No especificado'}</span></td>
             <td>{ped.get('notas') or 'Sin notas'}</td>
             <td><span style="background:#FEF3C7; color:#92400E; padding:4px 10px; border-radius:999px;">{ped.get('estado') or 'Pendiente'}</span></td>
         </tr>
@@ -470,8 +451,8 @@ def ver_pedidos():
         <div class="header-title"><h1>Encargos Recibidos</h1></div>
         <div class="table-box">
             <table>
-                <thead><tr><th>ID</th><th>Cliente</th><th>WhatsApp</th><th>Método de Pago</th><th>Notas</th><th>Estado</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="6">No hay encargos registrados para tu local.</td></tr>'}</tbody>
+                <thead><tr><th>ID</th><th>Cliente</th><th>WhatsApp</th><th>Notas</th><th>Estado</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="5">No hay encargos registrados para tu local.</td></tr>'}</tbody>
             </table>
         </div>
     """
