@@ -493,19 +493,175 @@ def ver_productos():
             <td>{p.get('nombre')}</td>
             <td><strong>${p.get('precio')} MXN</strong></td>
             <td>{p.get('stock', 0)} pzas</td>
+            <td>
+                <a href="/admin/producto/editar/{p.get('id')}" style="background:#EEF2FF; color:#4F46E5; padding:6px 12px; border-radius:6px; text-decoration:none; font-weight:600; margin-right:6px;"><i class="fa-solid fa-pen"></i> Editar</a>
+                <a href="/admin/producto/eliminar/{p.get('id')}" onclick="return confirm('¿Estás seguro de eliminar este producto?');" style="background:#FEE2E2; color:#B91C1C; padding:6px 12px; border-radius:6px; text-decoration:none; font-weight:600;"><i class="fa-solid fa-trash"></i> Borrar</a>
+            </td>
         </tr>
         """
 
     content = f"""
-        <div class="header-title"><h1>Productos en Inventario</h1></div>
+        <div class="header-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <h1>Productos en Inventario</h1>
+            <a href="/admin/producto/nuevo" style="background:#4F46E5; color:white; padding:10px 16px; border-radius:8px; text-decoration:none; font-weight:600;"><i class="fa-solid fa-plus"></i> Añadir Producto</a>
+        </div>
         <div class="table-box">
             <table>
-                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="5">No hay productos registrados en tu inventario.</td></tr>'}</tbody>
+                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="6">No hay productos registrados en tu inventario.</td></tr>'}</tbody>
             </table>
         </div>
     """
     return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/admin/producto/nuevo", methods=["GET", "POST"])
+@login_required
+def nuevo_producto():
+    tienda_id = session.get("tienda_id")
+    error = None
+    
+    categorias = []
+    try:
+        res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
+        categorias = res_cat.data if res_cat.data else []
+    except:
+        pass
+
+    if request.method == "POST":
+        nombre = request.form.get("nombre")
+        precio = request.form.get("precio")
+        stock = request.form.get("stock")
+        categoria_id = request.form.get("categoria_id")
+        imagen_url = request.form.get("imagen_url")
+        
+        try:
+            supabase.table("productos").insert({
+                "tienda_id": tienda_id,
+                "nombre": nombre,
+                "precio": float(precio) if precio else 0,
+                "stock": int(stock) if stock else 1,
+                "categoria_id": int(categoria_id) if categoria_id else None,
+                "imagen_url": imagen_url
+            }).execute()
+            return redirect(url_for("ver_productos"))
+        except Exception as e:
+            error = f"Error al guardar: {e}"
+
+    options_cat = "".join([f"<option value='{c.get('id')}'>{c.get('nombre')}</option>" for c in categorias])
+    
+    content = f"""
+        <div class="header-title"><h1>Añadir Nuevo Producto</h1></div>
+        <div class="table-box" style="max-width: 600px;">
+            {'<p style="color:red; margin-bottom:12px;">' + error + '</p>' if error else ''}
+            <form method="POST">
+                <label style="font-size:0.85rem; font-weight:600;">Nombre de la Prenda:</label>
+                <input type="text" name="nombre" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                
+                <label style="font-size:0.85rem; font-weight:600;">Precio (MXN):</label>
+                <input type="number" step="0.01" name="precio" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                
+                <label style="font-size:0.85rem; font-weight:600;">Stock / Cantidad:</label>
+                <input type="number" name="stock" value="10" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                
+                <label style="font-size:0.85rem; font-weight:600;">Categoría:</label>
+                <select name="categoria_id" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;">
+                    {options_cat}
+                </select>
+                
+                <label style="font-size:0.85rem; font-weight:600;">URL de la Imagen:</label>
+                <input type="url" name="imagen_url" placeholder="https://..." style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;">
+                
+                <div style="display:flex; gap:10px;">
+                    <button type="submit" style="background:#4F46E5; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Guardar Producto</button>
+                    <a href="/productos" style="background:#E2E8F0; color:#475569; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
+@login_required
+def editar_producto(id):
+    tienda_id = session.get("tienda_id")
+    error = None
+    
+    try:
+        res_prod = supabase.table("productos").select("*").eq("id", id).eq("tienda_id", tienda_id).execute()
+        if not res_prod.data:
+            return redirect(url_for("ver_productos"))
+        producto = res_prod.data[0]
+    except:
+        return redirect(url_for("ver_productos"))
+
+    categorias = []
+    try:
+        res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
+        categorias = res_cat.data if res_cat.data else []
+    except:
+        pass
+
+    if request.method == "POST":
+        nombre = request.form.get("nombre")
+        precio = request.form.get("precio")
+        stock = request.form.get("stock")
+        categoria_id = request.form.get("categoria_id")
+        imagen_url = request.form.get("imagen_url")
+        
+        try:
+            supabase.table("productos").update({
+                "nombre": nombre,
+                "precio": float(precio) if precio else 0,
+                "stock": int(stock) if stock else 0,
+                "categoria_id": int(categoria_id) if categoria_id else None,
+                "imagen_url": imagen_url
+            }).eq("id", id).eq("tienda_id", tienda_id).execute()
+            return redirect(url_for("ver_productos"))
+        except Exception as e:
+            error = f"Error al actualizar: {e}"
+
+    options_cat = "".join([f"<option value='{c.get('id')}' {'selected' if str(c.get('id')) == str(producto.get('categoria_id')) else ''}>{c.get('nombre')}</option>" for c in categorias])
+    
+    content = f"""
+        <div class="header-title"><h1>Editar Producto</h1></div>
+        <div class="table-box" style="max-width: 600px;">
+            {'<p style="color:red; margin-bottom:12px;">' + error + '</p>' if error else ''}
+            <form method="POST">
+                <label style="font-size:0.85rem; font-weight:600;">Nombre de la Prenda:</label>
+                <input type="text" name="nombre" value="{producto.get('nombre', '')}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                
+                <label style="font-size:0.85rem; font-weight:600;">Precio (MXN):</label>
+                <input type="number" step="0.01" name="precio" value="{producto.get('precio', 0)}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                
+                <label style="font-size:0.85rem; font-weight:600;">Stock / Cantidad:</label>
+                <input type="number" name="stock" value="{producto.get('stock', 0)}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
+                
+                <label style="font-size:0.85rem; font-weight:600;">Categoría:</label>
+                <select name="categoria_id" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;">
+                    {options_cat}
+                </select>
+                
+                <label style="font-size:0.85rem; font-weight:600;">URL de la Imagen:</label>
+                <input type="url" name="imagen_url" value="{producto.get('imagen_url') or producto.get('imagen') or ''}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;">
+                
+                <div style="display:flex; gap:10px;">
+                    <button type="submit" style="background:#4F46E5; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Actualizar Producto</button>
+                    <a href="/productos" style="background:#E2E8F0; color:#475569; padding:12px 20px; border-radius:8px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/admin/producto/eliminar/<int:id>")
+@login_required
+def eliminar_producto(id):
+    tienda_id = session.get("tienda_id")
+    try:
+        supabase.table("productos").delete().eq("id", id).eq("tienda_id", tienda_id).execute()
+    except Exception as e:
+        pass
+    return redirect(url_for("ver_productos"))
 
 if __name__ == '__main__':
     app.run(debug=True)
