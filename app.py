@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template_string, redirect, url_for, session
 from functools import wraps
 from supabase import create_client, Client
+import base64
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_multiusuario_tiendas_123"
@@ -532,7 +533,14 @@ def nuevo_producto():
         precio = request.form.get("precio")
         stock = request.form.get("stock")
         categoria_id = request.form.get("categoria_id")
-        imagen_url = request.form.get("imagen_url")
+        
+        imagen_file = request.files.get("foto_producto")
+        imagen_url = None
+        if imagen_file and imagen_file.filename != '':
+            file_bytes = imagen_file.read()
+            encoded_str = base64.b64encode(file_bytes).decode('utf-8')
+            mime_type = imagen_file.mimetype or 'image/png'
+            imagen_url = f"data:{mime_type};base64,{encoded_str}"
         
         try:
             supabase.table("productos").insert({
@@ -553,7 +561,7 @@ def nuevo_producto():
         <div class="header-title"><h1>Añadir Nuevo Producto</h1></div>
         <div class="table-box" style="max-width: 600px;">
             {'<p style="color:red; margin-bottom:12px;">' + error + '</p>' if error else ''}
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <label style="font-size:0.85rem; font-weight:600;">Nombre de la Prenda:</label>
                 <input type="text" name="nombre" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
                 
@@ -568,8 +576,8 @@ def nuevo_producto():
                     {options_cat}
                 </select>
                 
-                <label style="font-size:0.85rem; font-weight:600;">URL de la Imagen:</label>
-                <input type="url" name="imagen_url" placeholder="https://..." style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;">
+                <label style="font-size:0.85rem; font-weight:600;">Foto de la Prenda:</label>
+                <input type="file" name="foto_producto" accept="image/*" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
                 
                 <div style="display:flex; gap:10px;">
                     <button type="submit" style="background:#4F46E5; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Guardar Producto</button>
@@ -606,7 +614,15 @@ def editar_producto(id):
         precio = request.form.get("precio")
         stock = request.form.get("stock")
         categoria_id = request.form.get("categoria_id")
-        imagen_url = request.form.get("imagen_url")
+        
+        imagen_file = request.files.get("foto_producto")
+        if imagen_file and imagen_file.filename != '':
+            file_bytes = imagen_file.read()
+            encoded_str = base64.b64encode(file_bytes).decode('utf-8')
+            mime_type = imagen_file.mimetype or 'image/png'
+            imagen_url = f"data:{mime_type};base64,{encoded_str}"
+        else:
+            imagen_url = producto.get('imagen_url') or producto.get('imagen')
         
         try:
             supabase.table("productos").update({
@@ -626,7 +642,7 @@ def editar_producto(id):
         <div class="header-title"><h1>Editar Producto</h1></div>
         <div class="table-box" style="max-width: 600px;">
             {'<p style="color:red; margin-bottom:12px;">' + error + '</p>' if error else ''}
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <label style="font-size:0.85rem; font-weight:600;">Nombre de la Prenda:</label>
                 <input type="text" name="nombre" value="{producto.get('nombre', '')}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;" required>
                 
@@ -641,8 +657,8 @@ def editar_producto(id):
                     {options_cat}
                 </select>
                 
-                <label style="font-size:0.85rem; font-weight:600;">URL de la Imagen:</label>
-                <input type="url" name="imagen_url" value="{producto.get('imagen_url') or producto.get('imagen') or ''}" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;">
+                <label style="font-size:0.85rem; font-weight:600;">Cambiar Foto (Opcional):</label>
+                <input type="file" name="foto_producto" accept="image/*" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid #CBD5E1; border-radius:8px;">
                 
                 <div style="display:flex; gap:10px;">
                     <button type="submit" style="background:#4F46E5; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Actualizar Producto</button>
