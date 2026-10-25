@@ -5,9 +5,9 @@ from supabase import create_client, Client
 app = Flask(__name__)
 app.secret_key = "clave_secreta_multiusuario_tiendas_123"
 
-# Conexión directa con Supabase (sin os.getenv)
+# Conexión directa con Supabase
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S" 
+SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-..."  # Asegúrate de poner tu clave anon completa aquí
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -119,8 +119,15 @@ def catalogo_tienda(slug):
     try:
         res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
         
+        # Crear la tienda automáticamente si no existe en la base de datos
         if not res_tienda.data:
-            return "<h3>Error: La tienda especificada no existe.</h3>", 404
+            supabase.table("tiendas").insert({
+                "id": 1,
+                "nombre": "Vibe Apparel",
+                "slug": slug,
+                "subscripcion_activa": True
+            }).execute()
+            res_tienda = supabase.table("tiendas").select("*").eq("slug", slug).execute()
 
         tienda = res_tienda.data[0]
         tienda_id = tienda.get("id")
