@@ -98,6 +98,7 @@ ADMIN_BASE_TEMPLATE = """
         <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
         <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
         <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
+        <a href="/admin/tienda/nueva" class="nav-btn" style="background: rgba(30, 58, 138, 0.2); color: #93C5FD;"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>
         <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
     </div>
     <div class="main-content">
@@ -439,6 +440,66 @@ def admin_index():
                     <p style="color:var(--text-muted); font-size:0.85rem; margin-top:6px;">Gestiona el catálogo e inventario.</p>
                 </div>
             </a>
+        </div>
+    """
+    return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
+
+@app.route("/admin/tienda/nueva", methods=["GET", "POST"])
+@login_required
+def nueva_tienda():
+    error = None
+    if request.method == "POST":
+        nombre_tienda = request.form.get("nombre")
+        slug_tienda = request.form.get("slug")
+        admin_user = request.form.get("admin_user")
+        admin_pass = request.form.get("admin_pass")
+        
+        try:
+            # 1. Insertar la nueva tienda
+            res_t = supabase.table("tiendas").insert({
+                "nombre": nombre_tienda,
+                "slug": slug_tienda,
+                "subscripcion_activa": True
+            }).execute()
+            
+            if res_t.data:
+                nueva_tienda_id = res_t.data[0].get("id")
+                
+                # 2. Crear su usuario administrador asociado
+                supabase.table("administradores").insert({
+                    "username": admin_user,
+                    "password": admin_pass,
+                    "tienda_id": nueva_tienda_id
+                }).execute()
+                
+                return redirect(url_for("admin_index"))
+            else:
+                error = "No se pudo crear la tienda en la base de datos."
+        except Exception as e:
+            error = f"Error al registrar: {e}"
+
+    content = f"""
+        <div class="header-title"><h1>Registrar Nueva Tienda</h1></div>
+        <div class="table-box" style="max-width: 600px;">
+            {'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">' + error + '</p>' if error else ''}
+            <form method="POST">
+                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre Comercial del Local</label>
+                <input type="text" name="nombre" placeholder="Ej. Urban Style" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                
+                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Identificador URL (Slug sin espacios)</label>
+                <input type="text" name="slug" placeholder="Ej. urban-style" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                
+                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Usuario Administrador</label>
+                <input type="text" name="admin_user" placeholder="Ej. urban_admin" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                
+                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Contraseña del Administrador</label>
+                <input type="password" name="admin_pass" style="width:100%; padding:10px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px;" required>
+                
+                <div style="display:flex; gap:10px;">
+                    <button type="submit" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Crear Tienda</button>
+                    <a href="/admin" style="background:#F4F4F5; color:var(--text-main); padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
+                </div>
+            </form>
         </div>
     """
     return render_template_string(ADMIN_BASE_TEMPLATE.replace("{% block content %}{% endblock %}", content))
