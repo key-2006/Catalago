@@ -137,65 +137,78 @@ def catalogo_tienda(slug):
         res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_cat.data if res_cat.data else []
         
-        cat_id_sel = request.args.get("cat")
         msg_exito = request.args.get("encargo_exito")
         
-        query_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id)
-        if cat_id_sel:
-            query_prod = query_prod.eq("categoria_id", cat_id_sel)
-        
-        res_prod = query_prod.execute()
+        res_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
         productos = res_prod.data if res_prod.data else []
 
     except Exception as e:
         return f"<div style='padding:40px; font-family:sans-serif;'><h2>Error al cargar la tienda:</h2><p>{e}</p></div>", 500
 
-    cards_html = ""
+    secciones_html = ""
+    productos_por_cat = {}
+    
     for p in productos:
-        img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
-        stock_cant = p.get('stock') if p.get('stock') is not None else 1
+        cat_id = p.get('categoria_id')
+        if cat_id:
+            if cat_id not in productos_por_cat:
+                productos_por_cat[cat_id] = []
+            productos_por_cat[cat_id].append(p)
+
+    for c in categorias:
+        c_id = c.get('id')
+        c_nombre = c.get('nombre') or 'Categoría'
+        prods_de_cat = productos_por_cat.get(c_id, [])
         
-        if stock_cant <= 0:
-            badge_stock = '<span class="badge-stock stock-out">Agotado</span>'
-            overlay_agotado = '<div class="sold-out-overlay">AGOTADO</div>'
-            btn_html = f'<button class="btn-encargar btn-disabled" disabled><i class="fa-solid fa-ban"></i> Prenda Agotada</button>'
-            img_class = "img-grayscale"
-        else:
-            badge_stock = f'<span class="badge-stock stock-in">Quedan {stock_cant} pza{"s" if stock_cant > 1 else ""}</span>'
-            overlay_agotado = ''
-            btn_html = f'''<button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{p.get('nombre')}', '{p.get('precio')}')">
-                            <i class="fa-solid fa-bag-shopping"></i> Encargar Prenda
-                          </button>'''
-            img_class = ""
-        
-        cards_html += f"""
-        <div class="product-card">
-            <div class="img-wrapper">
-                <img src="{img_url}" alt="{p.get('nombre')}" class="{img_class}">
-                {overlay_agotado}
+        if not prods_de_cat:
+            continue
+            
+        cards_html = ""
+        for p in prods_de_cat:
+            img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+            stock_cant = p.get('stock') if p.get('stock') is not None else 1
+            
+            if stock_cant <= 0:
+                badge_stock = '<span class="badge-stock stock-out">Agotado</span>'
+                overlay_agotado = '<div class="sold-out-overlay">AGOTADO</div>'
+                btn_html = f'<button class="btn-encargar btn-disabled" disabled><i class="fa-solid fa-ban"></i> Prenda Agotada</button>'
+                img_class = "img-grayscale"
+            else:
+                badge_stock = f'<span class="badge-stock stock-in">Quedan {stock_cant} pza{"s" if stock_cant > 1 else ""}</span>'
+                overlay_agotado = ''
+                btn_html = f'''<button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{p.get('nombre')}', '{p.get('precio')}')">
+                                <i class="fa-solid fa-bag-shopping"></i> Encargar Prenda
+                              </button>'''
+                img_class = ""
+            
+            cards_html += f"""
+            <div class="product-card">
+                <div class="img-wrapper">
+                    <img src="{img_url}" alt="{p.get('nombre')}" class="{img_class}">
+                    {overlay_agotado}
+                </div>
+                <div class="card-content">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="category-badge">{c_nombre}</span>
+                        {badge_stock}
+                    </div>
+                    <h3 class="product-title">{p.get('nombre')}</h3>
+                    <div class="price-row">
+                        <span class="price">${p.get('precio')} MXN</span>
+                    </div>
+                    {btn_html}
+                </div>
             </div>
-            <div class="card-content">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span class="category-badge">Disponible</span>
-                    {badge_stock}
-                </div>
-                <h3 class="product-title">{p.get('nombre')}</h3>
-                <div class="price-row">
-                    <span class="price">${p.get('precio')} MXN</span>
-                </div>
-                {btn_html}
+            """
+        
+        secciones_html += f"""
+        <div class="category-section">
+            <h2 class="category-section-title"><i class="fa-solid fa-tag"></i> {c_nombre}</h2>
+            <div class="products-grid">
+                {cards_html}
             </div>
         </div>
         """
-
-    active_all = 'active-cat' if not cat_id_sel else ''
-    cat_html = f'<li class="cat-item"><a href="/tienda/{slug}" class="{active_all}">Todas las prendas</a></li>'
-    
-    for c in categorias:
-        cat_id = c.get('id')
-        nombre_cat = c.get('nombre') or 'Categoría'
-        active_class = 'active-cat' if str(cat_id_sel) == str(cat_id) else ''
-        cat_html += f'<li class="cat-item"><a href="/tienda/{slug}?cat={cat_id}" class="{active_class}">{nombre_cat}</a></li>'
 
     return render_template_string(f"""
     <!DOCTYPE html>
@@ -213,11 +226,9 @@ def catalogo_tienda(slug):
             nav {{ background: var(--surface); border-bottom: 1px solid #E2E8F0; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }}
             .logo {{ font-size: 1.3rem; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }}
             .hero {{ background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; padding: 2.5rem 1.5rem; text-align: center; margin: 1.5rem auto; max-width: 1200px; border-radius: 16px; }}
-            .layout {{ max-width: 1200px; margin: 0 auto 2rem; padding: 0 1.5rem; display: grid; grid-template-columns: 240px 1fr; gap: 2rem; }}
-            .sidebar-cat {{ background: var(--surface); padding: 1.5rem; border-radius: 12px; border: 1px solid #E2E8F0; height: fit-content; }}
-            .cat-list {{ list-style: none; margin-top: 1rem; }}
-            .cat-item a {{ display: block; padding: 8px 12px; color: var(--muted); text-decoration: none; border-radius: 6px; font-weight: 500; }}
-            .cat-item a.active-cat {{ background: #EEF2FF; color: var(--primary); font-weight: 700; }}
+            .container-main {{ max-width: 1200px; margin: 0 auto 3rem; padding: 0 1.5rem; }}
+            .category-section {{ margin-bottom: 2.5rem; }}
+            .category-section-title {{ font-size: 1.4rem; font-weight: 800; color: var(--text); margin-bottom: 1rem; display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #E2E8F0; padding-bottom: 8px; }}
             .products-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1.5rem; }}
             .product-card {{ background: var(--surface); border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; position: relative; }}
             .img-wrapper {{ position: relative; width: 100%; height: 220px; background: #E2E8F0; overflow: hidden; }}
@@ -243,20 +254,13 @@ def catalogo_tienda(slug):
 
         <section class="hero">
             <h1>Catálogo de {tienda.get('nombre')}</h1>
-            <p>Explora nuestras prendas disponibles y realiza tu encargo en línea fácil y rápido.</p>
+            <p>Explora nuestras prendas clasificadas por categorías y realiza tu encargo fácilmente.</p>
         </section>
 
         {'<div class="alert-toast">¡Tu encargo ha sido enviado con éxito! Te contactaremos pronto.</div>' if msg_exito else ''}
 
-        <div class="layout">
-            <aside class="sidebar-cat">
-                <h3>Categorías</h3>
-                <ul class="cat-list">{cat_html}</ul>
-            </aside>
-
-            <main class="products-grid">
-                {cards_html if cards_html else '<p style="grid-column: 1/-1; text-align: center; color: #64748B; padding: 2rem;">No hay prendas registradas en este catálogo.</p>'}
-            </main>
+        <div class="container-main">
+            {secciones_html if secciones_html else '<p style="text-align: center; color: #64748B; padding: 3rem;">No hay prendas o categorías registradas en este catálogo.</p>'}
         </div>
 
         <div class="modal-overlay" id="modalEncargo">
@@ -416,7 +420,7 @@ def admin_index():
             <h1>Panel de Administración - {nombre_tienda}</h1>
             <p>Aquí gestionas únicamente los productos, inventario y pedidos de tu local.</p>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <a href="/pedidos" style="text-decoration:none;">
                 <div style="background:white; padding:24px; border-radius:12px; border:1px solid #E2E8F0;">
                     <h3 style="color:#0F172A;"><i class="fa-solid fa-receipt" style="color:#4F46E5;"></i> Ver Encargos</h3>
