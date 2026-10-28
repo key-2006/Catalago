@@ -1062,21 +1062,23 @@ def editar_producto(id):
             return f"Error al actualizar: {e}"
 
     foto_actual = producto.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
-    content = f"""
+    
+    # IMPORTANTE: Usamos comillas normales (sin f) para evitar que Python intente procesar las llaves de JavaScript
+    content = """
         <h1>Editar Producto</h1>
         <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
             <input type="hidden" name="imagen_recortada" id="imagen_recortada">
-            <label>Nombre</label><input type="text" name="nombre" value="{producto.get('nombre')}" required style="width:100%; padding:8px; margin:6px 0 16px;">
-            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="{producto.get('precio')}" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Nombre</label><input type="text" name="nombre" value="NOMBRE_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="PRECIO_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
-                <div><label>Stock CH</label><input type="number" name="stock_ch" value="{producto.get('stock_ch',0)}" style="width:100%; padding:8px;"></div>
-                <div><label>Stock M</label><input type="number" name="stock_m" value="{producto.get('stock_m',0)}" style="width:100%; padding:8px;"></div>
-                <div><label>Stock G</label><input type="number" name="stock_g" value="{producto.get('stock_g',0)}" style="width:100%; padding:8px;"></div>
-                <div><label>Stock XG</label><input type="number" name="stock_xg" value="{producto.get('stock_xg',0)}" style="width:100%; padding:8px;"></div>
+                <div><label>Stock CH</label><input type="number" name="stock_ch" value="SCH_PLACEHOLDER" style="width:100%; padding:8px;"></div>
+                <div><label>Stock M</label><input type="number" name="stock_m" value="SM_PLACEHOLDER" style="width:100%; padding:8px;"></div>
+                <div><label>Stock G</label><input type="number" name="stock_g" value="SG_PLACEHOLDER" style="width:100%; padding:8px;"></div>
+                <div><label>Stock XG</label><input type="number" name="stock_xg" value="SXG_PLACEHOLDER" style="width:100%; padding:8px;"></div>
             </div>
 
-            <label>Foto Actual</label><div style="margin-bottom:12px;"><img src="{foto_actual}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"></div>
+            <label>Foto Actual</label><div style="margin-bottom:12px;"><img src="FOTO_PLACEHOLDER" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"></div>
             <label>Cambiar Foto (Opcional)</label><input type="file" id="inputFoto" accept="image/*" style="width:100%; margin-bottom:16px;">
             
             <div id="editorContainer" style="display:none; background:#18181B; padding:10px; border-radius:8px; text-align:center; margin-bottom:16px;">
@@ -1117,7 +1119,16 @@ def editar_producto(id):
             }
         </script>
     """
-    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
+    
+    content_final = content.replace("NOMBRE_PLACEHOLDER", str(producto.get('nombre') or '')) \
+                           .replace("PRECIO_PLACEHOLDER", str(producto.get('precio') or 0)) \
+                           .replace("SCH_PLACEHOLDER", str(producto.get('stock_ch') or 0)) \
+                           .replace("SM_PLACEHOLDER", str(producto.get('stock_m') or 0)) \
+                           .replace("SG_PLACEHOLDER", str(producto.get('stock_g') or 0)) \
+                           .replace("SXG_PLACEHOLDER", str(producto.get('stock_xg') or 0)) \
+                           .replace("FOTO_PLACEHOLDER", foto_actual)
+
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content_final))
 
 @app.route("/admin/producto/eliminar/<int:id>")
 @login_required
