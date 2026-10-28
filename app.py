@@ -8,7 +8,7 @@ app.secret_key = "clave_secreta_multiusuario_tiendas_123"
 
 # Conexión directa con Supabase
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
-SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
+SUPABASE_KEY = "PEGA_AQUÍ_TU_SUPABASE_KEY_COMPLETA"
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -53,11 +53,15 @@ PLANTILLA_SUSPENDIDO = """
 </html>
 """
 
-def obtener_sidebar_admin(es_superadmin=False):
+def obtener_sidebar_admin(es_superadmin=False, pedidos_pendientes=0):
     extra_menu = ""
     if es_superadmin:
         extra_menu = '<a href="/admin/tienda/nueva" class="nav-btn" style="background: rgba(30, 58, 138, 0.2); color: #93C5FD;"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>'
     
+    badge_html = ""
+    if pedidos_pendientes > 0:
+        badge_html = f'<span style="background: #EF4444; color: white; padding: 2px 8px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; margin-left: auto;">{pedidos_pendientes}</span>'
+
     plantilla_base = """
     <!DOCTYPE html>
     <html lang="es">
@@ -103,7 +107,7 @@ def obtener_sidebar_admin(es_superadmin=False):
                 </div>
             </div>
             <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
-            <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos / Pedidos</a>
+            <a href="/pedidos" class="nav-btn" style="display:flex; align-items:center;"><i class="fa-solid fa-receipt"></i> Encargos PEDIDOS_BADGE</a>
             <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
             <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
             EXTRA_MENU_PLACEHOLDER
@@ -115,7 +119,8 @@ def obtener_sidebar_admin(es_superadmin=False):
     </body>
     </html>
     """
-    return plantilla_base.replace("EXTRA_MENU_PLACEHOLDER", extra_menu)
+    return plantilla_base.replace("EXTRA_MENU_PLACEHOLDER", extra_menu) \
+                        .replace("PEDIDOS_BADGE", badge_html)
 
 @app.route("/")
 def inicio_raiz():
@@ -537,14 +542,42 @@ def admin_index():
     except:
         pass
 
-    content = """
+    # Contar pedidos pendientes para mostrar alerta visual en el inicio
+    pendientes_count = 0
+    try:
+        res_ped = supabase.table("pedidos").select("id", count="exact").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
+        if res_ped.count is not None:
+            pendientes_count = res_ped.count
+        else:
+            ped_data = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
+            pendientes_count = len(ped_data.data) if ped_data.data else 0
+    except:
+        pass
+
+    alerta_pendientes_html = ""
+    if pendientes_count > 0:
+        alerta_pendientes_html = f"""
+        <div style="background: #FEF3C7; border: 1px solid #F59E0B; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <i class="fa-solid fa-bell" style="color: #D97706; font-size: 1.2rem;"></i>
+                <div>
+                    <h4 style="color: #92400E; font-size: 0.95rem; font-weight: 700;">¡Tienes {pendientes_count} encargo(s) pendiente(s) por revisar!</h4>
+                    <p style="color: #B45309; font-size: 0.85rem; margin-top: 2px;">Revisa la sección de encargos para atender a tus clientes.</p>
+                </div>
+            </div>
+            <a href="/pedidos" style="background: #D97706; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.85rem;">Ver Encargos</a>
+        </div>
+        """
+
+    content = f"""
+        {alerta_pendientes_html}
         <div class="header-title">
             <h1>Panel Administrativo</h1>
-            <p style="color: var(--text-muted); font-size: 0.95rem;">Bienvenido a la administración de TIENDA_NOMBRE.</p>
+            <p style="color: var(--text-muted); font-size: 0.95rem;">Bienvenido a la administración de {nombre_tienda}.</p>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 700px;">
             <a href="/pedidos" style="text-decoration:none;">
-                <div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border); transition: border-color 0.2s;">
+                <div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border); transition: border-color 0.2s; position:relative;">
                     <h3 style="color:var(--text-main); font-size:1.1rem; display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-receipt" style="color:var(--primary);"></i> Encargos</h3>
                     <p style="color:var(--text-muted); font-size:0.85rem; margin-top:6px;">Revisa las solicitudes de compra.</p>
                 </div>
@@ -556,10 +589,10 @@ def admin_index():
                 </div>
             </a>
         </div>
-    """.replace("TIENDA_NOMBRE", nombre_tienda)
+    """
 
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/ver-catalogo")
 @login_required
@@ -643,9 +676,14 @@ def nueva_tienda():
 def ver_pedidos():
     tienda_id = session.get("tienda_id")
     pedidos = []
+    pendientes_count = 0
     try:
         res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).execute()
         pedidos = res.data if res.data else []
+        
+        for ped in pedidos:
+            if ped.get('estado') == 'Pendiente':
+                pendientes_count += 1
     except Exception as e:
         pass
 
@@ -675,16 +713,20 @@ def ver_pedidos():
     """.replace("ROWS_PLACEHOLDER", rows_html)
 
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/productos")
 @login_required
 def ver_productos():
     tienda_id = session.get("tienda_id")
     productos = []
+    pendientes_count = 0
     try:
         res = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
         productos = res.data if res.data else []
+        
+        res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
+        pendientes_count = len(res_ped.data) if res_ped.data else 0
     except Exception as e:
         pass
 
@@ -721,7 +763,7 @@ def ver_productos():
     """.replace("ROWS_PLACEHOLDER", rows_html)
 
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/nuevo", methods=["GET", "POST"])
 @login_required
@@ -730,9 +772,13 @@ def nuevo_producto():
     error = None
     
     categorias = []
+    pendientes_count = 0
     try:
         res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_cat.data if res_cat.data else []
+        
+        res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
+        pendientes_count = len(res_ped.data) if res_ped.data else 0
     except:
         pass
 
@@ -862,7 +908,7 @@ def nuevo_producto():
     """.replace("ERROR_PLACEHOLDER", error_html).replace("OPTIONS_CAT_PLACEHOLDER", options_cat)
 
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
 @login_required
@@ -879,9 +925,13 @@ def editar_producto(id):
         return redirect(url_for("ver_productos"))
 
     categorias = []
+    pendientes_count = 0
     try:
         res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_cat.data if res_cat.data else []
+        
+        res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
+        pendientes_count = len(res_ped.data) if res_ped.data else 0
     except:
         pass
 
@@ -1026,7 +1076,7 @@ def editar_producto(id):
        .replace("FOTO_ACTUAL_PLACEHOLDER", foto_actual)
 
     is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/eliminar/<int:id>")
 @login_required
