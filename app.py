@@ -91,8 +91,8 @@ def obtener_sidebar_admin(es_superadmin=False, pedidos_pendientes=0):
             .main-content { flex: 1; padding: 32px; overflow-y: auto; }
             .header-title { margin-bottom: 24px; }
             .header-title h1 { font-size: 1.75rem; font-weight: 800; color: var(--text-main); }
-            .table-box { background: var(--surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-            table { width: 100%; border-collapse: collapse; text-align: left; }
+            .table-box { background: var(--surface); padding: 24px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.02); overflow-x: auto; }
+            table { width: 100%; border-collapse: collapse; text-align: left; min-width: 1000px; }
             th { padding: 12px 16px; background: #FAFAFA; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid var(--border); }
             td { padding: 16px; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
             .img-preview-thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
@@ -561,7 +561,6 @@ def admin_index():
     except:
         pass
 
-    # Calcular si al dueño de la tienda le quedan 2 semanas o menos para su corte
     alerta_corte_tienda_html = ""
     if fecha_corte_str:
         try:
@@ -736,32 +735,38 @@ def ver_pedidos():
         tiempo_entrega = ped.get('tiempo_entrega') or 'No especificado'
         
         if p_estado == 'Completado':
-            badge_estado = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700;"><i class="fa-solid fa-circle-check"></i> Completado</span>'
+            badge_estado = '<span style="background:#ECFDF5; color:#047857; padding:6px 12px; border-radius:99px; font-size:0.8rem; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-circle-check"></i> Completado</span>'
             acciones = f'''
-                <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Marcar este pedido como Cancelado?');" style="background:#FEE2E2; color:#991B1B; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem; margin-right:4px;"><i class="fa-solid fa-ban"></i> Cancelar</a>
-                <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
+                <div style="display: flex; gap: 6px; white-space: nowrap;">
+                    <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Marcar este pedido como Cancelado?');" style="background:#FEE2E2; color:#991B1B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-ban"></i> Cancelar</a>
+                    <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
+                </div>
             '''
         elif p_estado == 'Cancelado':
-            badge_estado = '<span style="background:#FEF2F2; color:#991B1B; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> Cancelado</span>'
+            badge_estado = '<span style="background:#FEF2F2; color:#991B1B; padding:6px 12px; border-radius:99px; font-size:0.8rem; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-circle-xmark"></i> Cancelado</span>'
             acciones = f'''
-                <a href="/admin/pedido/completar/{p_id}" style="background:#ECFDF5; color:#047857; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem; margin-right:4px;"><i class="fa-solid fa-rotate-left"></i> Completar</a>
-                <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
+                <div style="display: flex; gap: 6px; white-space: nowrap;">
+                    <a href="/admin/pedido/completar/{p_id}" style="background:#ECFDF5; color:#047857; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-rotate-left"></i> Completar</a>
+                    <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
+                </div>
             '''
         else:
-            badge_estado = '<span style="background:#FEF3C7; color:#B45309; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700;"><i class="fa-solid fa-clock"></i> Pendiente</span>'
+            badge_estado = '<span style="background:#FEF3C7; color:#B45309; padding:6px 12px; border-radius:99px; font-size:0.8rem; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-clock"></i> Pendiente</span>'
             acciones = f'''
-                <a href="/admin/pedido/completar/{p_id}" style="background:#047857; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;"><i class="fa-solid fa-check"></i> Marcar Completado</a>
-                <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Deseas marcar este pedido como Cancelado?');" style="background:#EF4444; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-xmark"></i> Cancelar Pedido</a>
+                <div style="display: flex; gap: 6px; white-space: nowrap;">
+                    <a href="/admin/pedido/completar/{p_id}" style="background:#047857; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-check"></i> Completar</a>
+                    <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Deseas marcar este pedido como Cancelado?');" style="background:#EF4444; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-xmark"></i> Cancelar</a>
+                </div>
             '''
 
         rows += f"""
         <tr>
             <td><strong>#{p_id}</strong></td>
             <td><strong>{ped.get('cliente') or 'Cliente'}</strong></td>
-            <td><a href="https://wa.me/{ped.get('telefono')}" target="_blank" style="color:#047857; font-weight:700; text-decoration:none;"><i class="fa-brands fa-whatsapp"></i> {ped.get('telefono')}</a></td>
-            <td><span style="background:#F4F4F5; color:#18181B; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.85rem;">{ped.get('metodo_pago') or 'Efectivo'}</span></td>
-            <td><span style="background:#EFF6FF; color:#1E40AF; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-truck-fast"></i> {tiempo_entrega}</span></td>
-            <td>{ped.get('notas') or 'Sin notas'}</td>
+            <td><a href="https://wa.me/{ped.get('telefono')}" target="_blank" style="color:#047857; font-weight:700; text-decoration:none; white-space:nowrap;"><i class="fa-brands fa-whatsapp"></i> {ped.get('telefono')}</a></td>
+            <td><span style="background:#F4F4F5; color:#18181B; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.85rem; white-space:nowrap;">{ped.get('metodo_pago') or 'Efectivo'}</span></td>
+            <td><span style="background:#EFF6FF; color:#1E40AF; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.8rem; white-space:nowrap;"><i class="fa-solid fa-truck-fast"></i> {tiempo_entrega}</span></td>
+            <td style="max-width: 150px; word-break: break-word;">{ped.get('notas') or 'Sin notas'}</td>
             <td>{badge_estado}</td>
             <td>{acciones}</td>
         </tr>
@@ -1179,7 +1184,7 @@ def editar_producto(id):
                 }
             }
         </script>
-    """.replace("ERROR_PLACEHORN", error_html) \
+    """.replace("ERROR_PLACEHOLDER", error_html) \
        .replace("PROD_NOMBRE", producto.get('nombre', '')) \
        .replace("PROD_PRECIO", str(producto.get('precio', 0))) \
        .replace("PROD_STOCK", str(producto.get('stock', 0))) \
