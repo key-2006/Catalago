@@ -177,6 +177,7 @@ def catalogo_tienda(slug):
                 productos_por_cat[cat_id] = []
             productos_por_cat[cat_id].append(p)
 
+    # Renderizar por categorías existentes
     for c in categorias:
         c_id = c.get('id')
         c_nombre = c.get('nombre') or 'Categoría'
@@ -189,7 +190,6 @@ def catalogo_tienda(slug):
         for p in prods_de_cat:
             img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
             
-            # Stock por tallas
             sch = p.get('stock_ch') or 0
             sm = p.get('stock_m') or 0
             sg = p.get('stock_g') or 0
@@ -238,6 +238,41 @@ def catalogo_tienda(slug):
             <div class="products-grid">
                 {cards_html}
             </div>
+        </div>
+        """
+
+    # SECCIÓN DE RESPALDO: Mostrar también productos sin categoría para que nunca aparezca vacío el catálogo
+    prods_sin_cat = [p for p in productos if not p.get('categoria_id')]
+    if prods_sin_cat:
+        cards_sin_cat = ""
+        for p in prods_sin_cat:
+            img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+            sch = p.get('stock_ch') or 0
+            sm = p.get('stock_m') or 0
+            sg = p.get('stock_g') or 0
+            sxg = p.get('stock_xg') or 0
+            stock_total = sch + sm + sg + sxg
+            
+            cards_sin_cat += f"""
+            <div class="product-card">
+                <div class="img-wrapper"><img src="{img_url}" alt="{p.get('nombre')}"></div>
+                <div class="card-content">
+                    <span class="category-badge">General</span>
+                    <h3 class="product-title">{p.get('nombre')}</h3>
+                    <div class="price" style="margin-bottom:12px;">${p.get('precio')} MXN</div>
+                    <div style="font-size: 0.75rem; color: #71717A; margin-bottom: 10px;">
+                        CH: {sch} | M: {sm} | G: {sg} | XG: {sxg}
+                    </div>
+                    <button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{p.get('nombre')}', '{p.get('precio')}', {sch}, {sm}, {sg}, {sxg})">
+                        <i class="fa-solid fa-bag-shopping"></i> Encargar Prenda
+                    </button>
+                </div>
+            </div>
+            """
+        secciones_html += f"""
+        <div class="category-section">
+            <h2 class="category-section-title">Prendas Disponibles</h2>
+            <div class="products-grid">{cards_sin_cat}</div>
         </div>
         """
 
@@ -355,7 +390,6 @@ def catalogo_tienda(slug):
                 document.getElementById('modalProductoId').value = id;
                 document.getElementById('modalPrendaNombre').innerText = nombre + " — $" + precio + " MXN";
                 
-                // Deshabilitar tallas sin stock
                 document.getElementById('optCH').disabled = sch <= 0;
                 document.getElementById('optCH').innerText = "Chico (CH) — " + sch + " disp.";
                 
@@ -457,7 +491,6 @@ def hacer_encargo():
         
         nuevo_pedido_id = res_ins.data[0].get('id') if res_ins.data else 1
         
-        # Descontar stock de la talla exacta
         res_prod = supabase.table("productos").select("*").eq("id", producto_id).execute()
         if res_prod.data:
             p = res_prod.data[0]
@@ -570,7 +603,6 @@ def cancelar_mi_pedido(slug, pedido_id):
             
             supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", pedido_id).execute()
             
-            # Devolver stock a la talla exacta del producto
             if prod_id and talla:
                 res_prod = supabase.table("productos").select("*").eq("id", prod_id).execute()
                 if res_prod.data:
