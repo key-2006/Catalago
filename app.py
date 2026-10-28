@@ -177,7 +177,6 @@ def catalogo_tienda(slug):
                 productos_por_cat[cat_id] = []
             productos_por_cat[cat_id].append(p)
 
-    # Renderizar por categorías existentes
     for c in categorias:
         c_id = c.get('id')
         c_nombre = c.get('nombre') or 'Categoría'
@@ -241,7 +240,6 @@ def catalogo_tienda(slug):
         </div>
         """
 
-    # SECCIÓN DE RESPALDO: Mostrar también productos sin categoría para que nunca aparezca vacío el catálogo
     prods_sin_cat = [p for p in productos if not p.get('categoria_id')]
     if prods_sin_cat:
         cards_sin_cat = ""
@@ -930,7 +928,19 @@ def ver_productos():
     rows = ""
     for p in productos:
         img = p.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
-        rows += f"<tr><td>#{p.get('id')}</td><td><img src='{img}' style='width:40px;height:40px;object-fit:cover;border-radius:4px;'></td><td>{p.get('nombre')}</td><td><b>${p.get('precio')}</b></td><td>CH:{p.get('stock_ch',0)} | M:{p.get('stock_m',0)} | G:{p.get('stock_g',0)} | XG:{p.get('stock_xg',0)}</td><td><a href='/admin/producto/eliminar/{p.get('id')}' style='color:red;'>Borrar</a></td></tr>"
+        rows += f"""
+        <tr>
+            <td>#{p.get('id')}</td>
+            <td><img src='{img}' style='width:40px;height:40px;object-fit:cover;border-radius:4px;'></td>
+            <td>{p.get('nombre')}</td>
+            <td><b>${p.get('precio')}</b></td>
+            <td>CH:{p.get('stock_ch',0)} | M:{p.get('stock_m',0)} | G:{p.get('stock_g',0)} | XG:{p.get('stock_xg',0)}</td>
+            <td>
+                <a href='/admin/producto/editar/{p.get('id')}' style='background:#F4F4F5; color:#18181B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;'><i class='fa-solid fa-pen'></i> Editar</a>
+                <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
+            </td>
+        </tr>
+        """
 
     content = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -993,6 +1003,93 @@ def nuevo_producto():
             </div>
 
             <button type="submit" style="background:var(--primary); color:white; padding:10px 20px; border:none; border-radius:6px; font-weight:700;">Guardar Producto</button>
+        </form>
+
+        <script>
+            let cropper = null;
+            document.getElementById('inputFoto').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        document.getElementById('imagenParaRecortar').src = ev.target.result;
+                        document.getElementById('editorContainer').style.display = 'block';
+                        if (cropper) cropper.destroy();
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            function confirmarRecorte() {
+                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+                const b64 = canvas.toDataURL('image/jpeg');
+                document.getElementById('imagen_recortada').value = b64;
+                document.getElementById('imgResultadoPrev').src = b64;
+                document.getElementById('editorContainer').style.display = 'none';
+                document.getElementById('vistaPreviaBox').style.display = 'block';
+            }
+        </script>
+    """
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
+
+@app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
+@login_required
+def editar_producto(id):
+    tienda_id = session.get("tienda_id")
+    try:
+        res_prod = supabase.table("productos").select("*").eq("id", id).eq("tienda_id", tienda_id).execute()
+        if not res_prod.data:
+            return redirect(url_for("ver_productos"))
+        producto = res_prod.data[0]
+    except:
+        return redirect(url_for("ver_productos"))
+
+    if request.method == "POST":
+        nueva_imagen = request.form.get("imagen_recortada")
+        imagen_url = nueva_imagen if nueva_imagen and nueva_imagen != "" else producto.get('imagen_url')
+        try:
+            supabase.table("productos").update({
+                "nombre": request.form.get("nombre"),
+                "precio": float(request.form.get("precio") or 0),
+                "stock_ch": int(request.form.get("stock_ch") or 0),
+                "stock_m": int(request.form.get("stock_m") or 0),
+                "stock_g": int(request.form.get("stock_g") or 0),
+                "stock_xg": int(request.form.get("stock_xg") or 0),
+                "imagen_url": imagen_url
+            }).eq("id", id).eq("tienda_id", tienda_id).execute()
+            return redirect(url_for("ver_productos"))
+        except Exception as e:
+            return f"Error al actualizar: {e}"
+
+    foto_actual = producto.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+    content = f"""
+        <h1>Editar Producto</h1>
+        <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
+            <input type="hidden" name="imagen_recortada" id="imagen_recortada">
+            <label>Nombre</label><input type="text" name="nombre" value="{producto.get('nombre')}" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="{producto.get('precio')}" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                <div><label>Stock CH</label><input type="number" name="stock_ch" value="{producto.get('stock_ch',0)}" style="width:100%; padding:8px;"></div>
+                <div><label>Stock M</label><input type="number" name="stock_m" value="{producto.get('stock_m',0)}" style="width:100%; padding:8px;"></div>
+                <div><label>Stock G</label><input type="number" name="stock_g" value="{producto.get('stock_g',0)}" style="width:100%; padding:8px;"></div>
+                <div><label>Stock XG</label><input type="number" name="stock_xg" value="{producto.get('stock_xg',0)}" style="width:100%; padding:8px;"></div>
+            </div>
+
+            <label>Foto Actual</label><div style="margin-bottom:12px;"><img src="{foto_actual}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"></div>
+            <label>Cambiar Foto (Opcional)</label><input type="file" id="inputFoto" accept="image/*" style="width:100%; margin-bottom:16px;">
+            
+            <div id="editorContainer" style="display:none; background:#18181B; padding:10px; border-radius:8px; text-align:center; margin-bottom:16px;">
+                <div style="max-height:250px; overflow:hidden; margin-bottom:8px;"><img id="imagenParaRecortar" style="max-width:100%;"></div>
+                <button type="button" onclick="cropper.rotate(90)" style="background:#3F3F46; color:white; border:none; padding:6px 10px; border-radius:4px;">Girar</button>
+                <button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:6px 10px; border-radius:4px;">Aplicar Recorte</button>
+            </div>
+
+            <div id="vistaPreviaBox" style="display:none; text-align:center; margin-bottom:16px;">
+                <img id="imgResultadoPrev" style="width:80px; height:80px; object-fit:cover; border-radius:6px;">
+            </div>
+
+            <button type="submit" style="background:var(--primary); color:white; padding:10px 20px; border:none; border-radius:6px; font-weight:700;">Actualizar Producto</button>
         </form>
 
         <script>
