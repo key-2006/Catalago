@@ -155,7 +155,6 @@ def catalogo_tienda(slug):
         msg_exito = request.args.get("encargo_exito")
         pedido_id_creado = request.args.get("pedido_id")
         
-        # Recuperar datos del pedido recién hecho si existe para el banner de confirmación
         pedido_reciente = None
         if pedido_id_creado:
             res_p_rec = supabase.table("pedidos").select("*").eq("id", pedido_id_creado).execute()
@@ -189,17 +188,23 @@ def catalogo_tienda(slug):
         cards_html = ""
         for p in prods_de_cat:
             img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
-            stock_cant = p.get('stock') if p.get('stock') is not None else 1
             
-            if stock_cant <= 0:
+            # Stock por tallas
+            sch = p.get('stock_ch') or 0
+            sm = p.get('stock_m') or 0
+            sg = p.get('stock_g') or 0
+            sxg = p.get('stock_xg') or 0
+            stock_total = sch + sm + sg + sxg
+            
+            if stock_total <= 0:
                 badge_stock = '<span class="badge-stock stock-out">Agotado</span>'
                 overlay_agotado = '<div class="sold-out-overlay">AGOTADO</div>'
-                btn_html = f'<button class="btn-encargar btn-disabled" disabled><i class="fa-solid fa-ban"></i> Prenda Agotada</button>'
+                btn_html = f'<button class="btn-encargar btn-disabled" disabled><i class="fa-solid fa-ban"></i> Agotado</button>'
                 img_class = "img-grayscale"
             else:
-                badge_stock = f'<span class="badge-stock stock-in">Disponibles: {stock_cant}</span>'
+                badge_stock = f'<span class="badge-stock stock-in">Stock Total: {stock_total}</span>'
                 overlay_agotado = ''
-                btn_html = f'''<button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{p.get('nombre')}', '{p.get('precio')}')">
+                btn_html = f'''<button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{p.get('nombre')}', '{p.get('precio')}', {sch}, {sm}, {sg}, {sxg})">
                                 <i class="fa-solid fa-bag-shopping"></i> Encargar Prenda
                               </button>'''
                 img_class = ""
@@ -218,6 +223,9 @@ def catalogo_tienda(slug):
                     <h3 class="product-title">{p.get('nombre')}</h3>
                     <div class="price-row" style="margin-bottom:12px;">
                         <span class="price">${p.get('precio')} MXN</span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: #71717A; margin-bottom: 10px;">
+                        CH: {sch} | M: {sm} | G: {sg} | XG: {sxg}
                     </div>
                     {btn_html}
                 </div>
@@ -308,6 +316,15 @@ def catalogo_tienda(slug):
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Teléfono / WhatsApp</label>
                     <input type="tel" name="telefono" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
                     
+                    <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Selecciona tu Talla</label>
+                    <select name="talla" id="selectTalla" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;" required>
+                        <option value="" disabled selected>Elige una talla...</option>
+                        <option value="CH" id="optCH">Chico (CH)</option>
+                        <option value="M" id="optM">Mediano (M)</option>
+                        <option value="G" id="optG">Grande (G)</option>
+                        <option value="XG" id="optXG">Extra Grande (XG)</option>
+                    </select>
+
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Método de Pago</label>
                     <select name="metodo_pago" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;" required>
                         <option value="Efectivo al Entregar">Efectivo al Entregar</option>
@@ -322,7 +339,7 @@ def catalogo_tienda(slug):
                         <option value="Programado (Más de 3 días)">📅 Programado (Más de 3 días)</option>
                     </select>
 
-                    <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Notas o Talla Deseada</label>
+                    <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Notas Adicionales</label>
                     <textarea name="notas" rows="2" style="width:100%; padding:10px 12px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; resize:none;"></textarea>
                     
                     <div style="display: flex; gap: 10px;">
@@ -334,9 +351,24 @@ def catalogo_tienda(slug):
         </div>
 
         <script>
-            function abrirModal(id, nombre, precio) {
+            function abrirModal(id, nombre, precio, sch, sm, sg, sxg) {
                 document.getElementById('modalProductoId').value = id;
                 document.getElementById('modalPrendaNombre').innerText = nombre + " — $" + precio + " MXN";
+                
+                // Deshabilitar tallas sin stock
+                document.getElementById('optCH').disabled = sch <= 0;
+                document.getElementById('optCH').innerText = "Chico (CH) — " + sch + " disp.";
+                
+                document.getElementById('optM').disabled = sm <= 0;
+                document.getElementById('optM').innerText = "Mediano (M) — " + sm + " disp.";
+                
+                document.getElementById('optG').disabled = sg <= 0;
+                document.getElementById('optG').innerText = "Grande (G) — " + sg + " disp.";
+                
+                document.getElementById('optXG').disabled = sxg <= 0;
+                document.getElementById('optXG').innerText = "Extra Grande (XG) — " + sxg + " disp.";
+                
+                document.getElementById('selectTalla').value = "";
                 document.getElementById('modalEncargo').style.display = 'flex';
             }
             function cerrarModal() {
@@ -360,16 +392,16 @@ def catalogo_tienda(slug):
         p_id = pedido_reciente.get('id')
         p_cliente = pedido_reciente.get('cliente')
         p_pago = pedido_reciente.get('metodo_pago')
+        p_talla = pedido_reciente.get('talla') or 'N/A'
         p_entrega = pedido_reciente.get('tiempo_entrega')
         
-        # Guardar en el navegador del cliente su último ID de pedido para que pueda consultarlo o cancelarlo
         script_guardar_local = f"""
         <script>
             localStorage.setItem('ultimo_pedido_id_{slug}', '{p_id}');
         </script>
         """
         
-        texto_whatsapp = f"Hola! Acabo de hacer un encargo en {tienda.get('nombre')}%0A*Folio:* #{p_id}%0A*Cliente:* {p_cliente}%0A*Pago:* {p_pago}%0A*Entrega:* {p_entrega}"
+        texto_whatsapp = f"Hola! Acabo de hacer un encargo en {tienda.get('nombre')}%0A*Folio:* #{p_id}%0A*Cliente:* {p_cliente}%0A*Talla:* {p_talla}%0A*Pago:* {p_pago}%0A*Entrega:* {p_entrega}"
         link_ws = f"https://wa.me/?text={texto_whatsapp}"
 
         alerta_html = f"""
@@ -378,10 +410,10 @@ def catalogo_tienda(slug):
             <div class="alert-toast">
                 <div>
                     <i class="fa-solid fa-circle-check"></i> ¡Encargo #{p_id} registrado con éxito! 
-                    <div style="font-size: 0.85rem; font-weight: 400; margin-top: 4px; opacity: 0.9;">Puedes enviar tu comprobante directamente o cancelar tu pedido si lo deseas.</div>
+                    <div style="font-size: 0.85rem; font-weight: 400; margin-top: 4px; opacity: 0.9;">Talla elegida: {p_talla}. Envía tu comprobante o cancela si lo requieres.</div>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <a href="{link_ws}" target="_blank" style="background: #25D366; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.85rem; display:flex; align-items:center; gap:6px;"><i class="fa-brands fa-whatsapp"></i> Enviar por WhatsApp</a>
+                    <a href="{link_ws}" target="_blank" style="background: #25D366; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.85rem; display:flex; align-items:center; gap:6px;"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
                     <a href="/tienda/{slug}/mi-pedido/{p_id}" style="background: white; color: #065F46; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.85rem;">Ver / Cancelar</a>
                 </div>
             </div>
@@ -405,6 +437,7 @@ def hacer_encargo():
     producto_id = request.form.get("producto_id")
     nombre_cliente = request.form.get("nombre_cliente")
     telefono = request.form.get("telefono")
+    talla = request.form.get("talla")
     metodo_pago = request.form.get("metodo_pago")
     tiempo_entrega = request.form.get("tiempo_entrega")
     notas = request.form.get("notas")
@@ -414,6 +447,7 @@ def hacer_encargo():
             "tienda_id": tienda_id,
             "cliente": nombre_cliente,
             "telefono": telefono,
+            "talla": talla,
             "metodo_pago": metodo_pago,
             "tiempo_entrega": tiempo_entrega,
             "notas": notas,
@@ -423,11 +457,22 @@ def hacer_encargo():
         
         nuevo_pedido_id = res_ins.data[0].get('id') if res_ins.data else 1
         
-        res_prod = supabase.table("productos").select("stock").eq("id", producto_id).execute()
+        # Descontar stock de la talla exacta
+        res_prod = supabase.table("productos").select("*").eq("id", producto_id).execute()
         if res_prod.data:
-            stock_actual = res_prod.data[0].get('stock') if res_prod.data[0].get('stock') is not None else 1
-            nuevo_stock = max(0, stock_actual - 1)
-            supabase.table("productos").update({"stock": nuevo_stock}).eq("id", producto_id).execute()
+            p = res_prod.data[0]
+            if talla == 'CH':
+                nuevo_stock = max(0, (p.get('stock_ch') or 0) - 1)
+                supabase.table("productos").update({"stock_ch": nuevo_stock}).eq("id", producto_id).execute()
+            elif talla == 'M':
+                nuevo_stock = max(0, (p.get('stock_m') or 0) - 1)
+                supabase.table("productos").update({"stock_m": nuevo_stock}).eq("id", producto_id).execute()
+            elif talla == 'G':
+                nuevo_stock = max(0, (p.get('stock_g') or 0) - 1)
+                supabase.table("productos").update({"stock_g": nuevo_stock}).eq("id", producto_id).execute()
+            elif talla == 'XG':
+                nuevo_stock = max(0, (p.get('stock_xg') or 0) - 1)
+                supabase.table("productos").update({"stock_xg": nuevo_stock}).eq("id", producto_id).execute()
 
         return redirect(url_for("catalogo_tienda", slug=slug, encargo_exito=1, pedido_id=nuevo_pedido_id))
     except Exception as e:
@@ -450,7 +495,6 @@ def ver_pedido_cliente(slug, pedido_id):
         return f"Error: {e}"
 
     estado = pedido.get('estado')
-    
     estado_badge = ""
     acciones_cliente = ""
     
@@ -463,8 +507,8 @@ def ver_pedido_cliente(slug, pedido_id):
     else:
         estado_badge = '<span style="background:#FEF3C7; color:#B45309; padding:6px 14px; border-radius:99px; font-weight:700;">Pendiente de Revisión</span>'
         acciones_cliente = f'''
-            <div style="margin-top: 24px; display: flex; gap: 12px;">
-                <a href="/tienda/{slug}/cancelar-mi-pedido/{pedido_id}" onclick="return confirm('¿Estás seguro de que deseas cancelar este pedido? El stock será devuelto automáticamente.');" style="background:#EF4444; color:white; padding:12px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;"><i class="fa-solid fa-ban"></i> Cancelar mi Pedido</a>
+            <div style="margin-top: 24px;">
+                <a href="/tienda/{slug}/cancelar-mi-pedido/{pedido_id}" onclick="return confirm('¿Deseas cancelar este pedido? La pieza devuelta regresará al inventario de su talla.');" style="background:#EF4444; color:white; padding:12px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;"><i class="fa-solid fa-ban"></i> Cancelar mi Pedido</a>
             </div>
         '''
 
@@ -499,6 +543,7 @@ def ver_pedido_cliente(slug, pedido_id):
 
             <div class="row"><span class="label">Cliente:</span><span class="val">{pedido.get('cliente')}</span></div>
             <div class="row"><span class="label">Teléfono:</span><span class="val">{pedido.get('telefono')}</span></div>
+            <div class="row"><span class="label">Talla Seleccionada:</span><span class="val" style="color:var(--primary);">{pedido.get('talla') or 'N/A'}</span></div>
             <div class="row"><span class="label">Método de Pago:</span><span class="val">{pedido.get('metodo_pago')}</span></div>
             <div class="row"><span class="label">Plazo de Entrega:</span><span class="val">{pedido.get('tiempo_entrega')}</span></div>
             <div class="row"><span class="label">Notas:</span><span class="val">{pedido.get('notas') or 'Sin notas'}</span></div>
@@ -517,21 +562,27 @@ def ver_pedido_cliente(slug, pedido_id):
 @app.route("/tienda/<slug>/cancelar-mi-pedido/<int:pedido_id>")
 def cancelar_mi_pedido(slug, pedido_id):
     try:
-        # Obtener el pedido para saber qué producto tenía y devolver el stock
         res_p = supabase.table("pedidos").select("*").eq("id", pedido_id).execute()
         if res_p.data:
             pedido = res_p.data[0]
             prod_id = pedido.get('producto_id')
+            talla = pedido.get('talla')
             
-            # Cambiar estatus a Cancelado
             supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", pedido_id).execute()
             
-            # Devolver stock a la prenda
-            if prod_id:
-                res_prod = supabase.table("productos").select("stock").eq("id", prod_id).execute()
+            # Devolver stock a la talla exacta del producto
+            if prod_id and talla:
+                res_prod = supabase.table("productos").select("*").eq("id", prod_id).execute()
                 if res_prod.data:
-                    stock_actual = res_prod.data[0].get('stock') if res_prod.data[0].get('stock') is not None else 0
-                    supabase.table("productos").update({"stock": stock_actual + 1}).eq("id", prod_id).execute()
+                    p = res_prod.data[0]
+                    if talla == 'CH':
+                        supabase.table("productos").update({"stock_ch": (p.get('stock_ch') or 0) + 1}).eq("id", prod_id).execute()
+                    elif talla == 'M':
+                        supabase.table("productos").update({"stock_m": (p.get('stock_m') or 0) + 1}).eq("id", prod_id).execute()
+                    elif talla == 'G':
+                        supabase.table("productos").update({"stock_g": (p.get('stock_g') or 0) + 1}).eq("id", prod_id).execute()
+                    elif talla == 'XG':
+                        supabase.table("productos").update({"stock_xg": (p.get('stock_xg') or 0) + 1}).eq("id", prod_id).execute()
     except Exception as e:
         pass
         
@@ -551,7 +602,6 @@ def login():
         
         try:
             res = supabase.table("administradores").select("*").eq("username", user_input).execute()
-            
             if res.data and len(res.data) > 0:
                 admin = res.data[0]
                 if admin.get("password") == pass_input:
@@ -560,7 +610,6 @@ def login():
                     session["username"] = admin.get("username")
                     session.pop("is_superadmin", None)
                     return redirect(url_for("admin_index"))
-            
             error = "Usuario o contraseña incorrectos."
         except Exception as e:
             error = f"Error al validar credenciales: {e}"
@@ -616,7 +665,7 @@ def super_admin_panel():
     try:
         res = supabase.table("tiendas").select("*").order("id").execute()
         tiendas = res.data if res.data else []
-    except Exception as e:
+    except:
         pass
 
     rows = ""
@@ -625,19 +674,10 @@ def super_admin_panel():
         t_nombre = t.get('nombre')
         t_slug = t.get('slug')
         activa = t.get('subscripcion_activa', True)
-        
-        status_badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Al Corriente (Activa)</span>' if activa else '<span style="background:#FEF2F2; color:#B91C1C; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Suspendida</span>'
+        status_badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Activa</span>' if activa else '<span style="background:#FEF2F2; color:#B91C1C; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Suspendida</span>'
         btn_accion = f'<a href="/super-admin/cambiar-estatus/{t_id}" style="background:{"#B91C1C" if activa else "#047857"}; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;">{"Suspender" if activa else "Activar"}</a>'
         
-        rows += f"""
-        <tr>
-            <td><strong>#{t_id}</strong></td>
-            <td><strong>{t_nombre}</strong></td>
-            <td><code>/tienda/{t_slug}</code></td>
-            <td>{status_badge}</td>
-            <td>{btn_accion}</td>
-        </tr>
-        """
+        rows += f"<tr><td><strong>#{t_id}</strong></td><td><strong>{t_nombre}</strong></td><td><code>/tienda/{t_slug}</code></td><td>{status_badge}</td><td>{btn_accion}</td></tr>"
 
     return render_template_string(f"""
     <!DOCTYPE html>
@@ -645,34 +685,29 @@ def super_admin_panel():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Control Maestro de Tiendas - Plataforma</title>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <title>Control Maestro</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
             body {{ background: #F4F4F5; color: #18181B; padding: 40px; }}
             .container {{ max-width: 1000px; margin: 0 auto; }}
             .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }}
-            .table-box {{ background: white; padding: 24px; border-radius: 8px; border: 1px solid #E4E4E7; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }}
+            .table-box {{ background: white; padding: 24px; border-radius: 8px; border: 1px solid #E4E4E7; }}
             table {{ width: 100%; border-collapse: collapse; text-align: left; }}
             th {{ padding: 12px 16px; background: #FAFAFA; color: #71717A; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #E4E4E7; }}
-            td {{ padding: 16px; border-bottom: 1px solid #E4E4E7; font-size: 0.9rem; vertical-align: middle; }}
+            td {{ padding: 16px; border-bottom: 1px solid #E4E4E7; font-size: 0.9rem; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <div>
-                    <h1 style="font-size: 1.8rem; font-weight: 800;"><i class="fa-solid fa-shield-halved" style="color:#1E3A8A;"></i> Control Maestro de Tiendas</h1>
-                    <p style="color: #71717A; font-size: 0.9rem;">Monitorea el estatus de suscripciones y pagos de todos los locales registrados.</p>
-                </div>
-                <a href="/logout" style="background:#EF4444; color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600; font-size:0.9rem;"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
+                <h1>Control Maestro de Tiendas</h1>
+                <a href="/logout" style="background:#EF4444; color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600;">Cerrar Sesión</a>
             </div>
-            
             <div class="table-box">
                 <table>
-                    <thead><tr><th>ID</th><th>Nombre de la Tienda</th><th>URL / Slug</th><th>Estatus de Suscripción</th><th>Acciones de Pago</th></tr></thead>
-                    <tbody>{rows if rows else '<tr><td colspan="5" style="text-align:center; color:#71717A;">No hay tiendas registradas.</td></tr>'}</tbody>
+                    <thead><tr><th>ID</th><th>Nombre</th><th>Slug</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                    <tbody>{rows if rows else '<tr><td colspan="5" style="text-align:center;">No hay tiendas.</td></tr>'}</tbody>
                 </table>
             </div>
         </div>
@@ -684,22 +719,14 @@ def super_admin_panel():
 def cambiar_estatus_tienda(id):
     if not session.get("logged_in") or not session.get("is_superadmin"):
         return redirect(url_for("login"))
-    
     try:
         res = supabase.table("tiendas").select("subscripcion_activa").eq("id", id).execute()
         if res.data:
-            estado_actual = res.data[0].get("subscripcion_activa", True)
-            nuevo_estado = not estado_actual
-            nueva_fecha = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat() if nuevo_estado else None
-            
-            update_data = {"subscripcion_activa": nuevo_estado}
-            if nueva_fecha:
-                update_data["fecha_corte"] = nueva_fecha
-
-            supabase.table("tiendas").update(update_data).eq("id", id).execute()
-    except Exception as e:
+            estado = res.data[0].get("subscripcion_activa", True)
+            nuevo = not estado
+            supabase.table("tiendas").update({"subscripcion_activa": nuevo}).eq("id", id).execute()
+    except:
         pass
-    
     return redirect(url_for("super_admin_panel"))
 
 @app.route("/admin")
@@ -708,7 +735,6 @@ def admin_index():
     tienda_id = session.get("tienda_id")
     nombre_tienda = "Mi Local"
     fecha_corte_str = None
-    
     try:
         res_t = supabase.table("tiendas").select("nombre, fecha_corte").eq("id", tienda_id).execute()
         if res_t.data:
@@ -717,77 +743,36 @@ def admin_index():
     except:
         pass
 
-    alerta_corte_tienda_html = ""
+    alerta_corte = ""
     if fecha_corte_str:
         try:
             ahora = datetime.now(timezone.utc)
             f_corte = datetime.fromisoformat(fecha_corte_str.replace('Z', '+00:00'))
-            dias_restantes = (f_corte - ahora).days
-            
-            if dias_restantes <= 14 and dias_restantes >= 0:
-                alerta_corte_tienda_html = f"""
-                <div style="background: #FEF3C7; border: 1px solid #F59E0B; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-                    <i class="fa-solid fa-triangle-exclamation" style="color: #D97706; font-size: 1.2rem;"></i>
-                    <div>
-                        <h4 style="color: #92400E; font-size: 0.95rem; font-weight: 700;">¡Tu servicio está próximo a vencer!</h4>
-                        <p style="color: #B45309; font-size: 0.85rem; margin-top: 2px;">Quedan {dias_restantes} día(s) para el corte de tu plataforma. Contacta al administrador para renovar tu suscripción.</p>
-                    </div>
-                </div>
-                """
+            dias = (f_corte - ahora).days
+            if dias <= 14 and dias >= 0:
+                alerta_corte = f'<div style="background: #FEF3C7; border: 1px solid #F59E0B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Aviso de Corte!</b> Quedan {dias} día(s) para el vencimiento de tu servicio.</div>'
         except:
             pass
 
     pendientes_count = 0
     try:
-        res_ped = supabase.table("pedidos").select("id", count="exact").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
-        if res_ped.count is not None:
-            pendientes_count = res_ped.count
-        else:
-            ped_data = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
-            pendientes_count = len(ped_data.data) if ped_data.data else 0
+        res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
+        pendientes_count = len(res_ped.data) if res_ped.data else 0
     except:
         pass
 
-    alerta_pendientes_html = ""
-    if pendientes_count > 0:
-        alerta_pendientes_html = f"""
-        <div style="background: #FEF3C7; border: 1px solid #F59E0B; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <i class="fa-solid fa-bell" style="color: #D97706; font-size: 1.2rem;"></i>
-                <div>
-                    <h4 style="color: #92400E; font-size: 0.95rem; font-weight: 700;">¡Tienes {pendientes_count} encargo(s) pendiente(s) por revisar!</h4>
-                    <p style="color: #B45309; font-size: 0.85rem; margin-top: 2px;">Revisa la sección de encargos para atender a tus clientes.</p>
-                </div>
-            </div>
-            <a href="/pedidos" style="background: #D97706; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.85rem;">Ver Encargos</a>
-        </div>
-        """
+    alerta_pendientes = f'<div style="background: #FEF3C7; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>Tienes {pendientes_count} encargo(s) pendiente(s).</b> <a href="/pedidos">Ver Encargos</a></div>' if pendientes_count > 0 else ''
 
     content = f"""
-        {alerta_corte_tienda_html}
-        {alerta_pendientes_html}
-        <div class="header-title">
-            <h1>Panel Administrativo</h1>
-            <p style="color: var(--text-muted); font-size: 0.95rem;">Bienvenido a la administración de {nombre_tienda}.</p>
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 700px;">
-            <a href="/pedidos" style="text-decoration:none;">
-                <div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border); transition: border-color 0.2s; position:relative;">
-                    <h3 style="color:var(--text-main); font-size:1.1rem; display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-receipt" style="color:var(--primary);"></i> Encargos</h3>
-                    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:6px;">Revisa las solicitudes de compra.</p>
-                </div>
-            </a>
-            <a href="/productos" style="text-decoration:none;">
-                <div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border); transition: border-color 0.2s;">
-                    <h3 style="color:var(--text-main); font-size:1.1rem; display:flex; align-items:center; gap:10px;"><i class="fa-solid fa-box-open" style="color:var(--primary);"></i> Productos</h3>
-                    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:6px;">Gestiona el catálogo e inventario.</p>
-                </div>
-            </a>
+        {alerta_corte}
+        {alerta_pendientes}
+        <div class="header-title"><h1>Panel de {nombre_tienda}</h1></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 600px;">
+            <a href="/pedidos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Encargos</h3></div></a>
+            <a href="/productos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Productos</h3></div></a>
         </div>
     """
-
-    is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False), pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/ver-catalogo")
 @login_required
@@ -796,8 +781,7 @@ def ver_catalogo_admin():
     try:
         res = supabase.table("tiendas").select("slug").eq("id", tienda_id).execute()
         if res.data:
-            slug = res.data[0].get("slug")
-            return redirect(url_for("catalogo_tienda", slug=slug))
+            return redirect(url_for("catalogo_tienda", slug=res.data[0].get("slug")))
     except:
         pass
     return redirect(url_for("admin_index"))
@@ -806,67 +790,38 @@ def ver_catalogo_admin():
 def nueva_tienda():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-        
     error = None
     if request.method == "POST":
-        nombre_tienda = request.form.get("nombre")
-        slug_tienda = request.form.get("slug")
-        admin_user = request.form.get("admin_user")
-        admin_pass = request.form.get("admin_pass")
-        
         try:
-            f_corte_inicial = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+            f_corte = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
             res_t = supabase.table("tiendas").insert({
-                "nombre": nombre_tienda,
-                "slug": slug_tienda,
+                "nombre": request.form.get("nombre"),
+                "slug": request.form.get("slug"),
                 "subscripcion_activa": True,
-                "fecha_corte": f_corte_inicial
+                "fecha_corte": f_corte
             }).execute()
-            
             if res_t.data:
-                nueva_tienda_id = res_t.data[0].get("id")
-                
                 supabase.table("administradores").insert({
-                    "username": admin_user,
-                    "password": admin_pass,
-                    "tienda_id": nueva_tienda_id
+                    "username": request.form.get("admin_user"),
+                    "password": request.form.get("admin_pass"),
+                    "tienda_id": res_t.data[0].get("id")
                 }).execute()
-                
-                return redirect(url_for("catalogo_tienda", slug=slug_tienda))
-            else:
-                error = "No se pudo crear la tienda en la base de datos."
+                return redirect(url_for("catalogo_tienda", slug=request.form.get("slug")))
         except Exception as e:
-            error = f"Error al registrar: {e}"
-
-    error_html = f'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">{error}</p>' if error else ''
+            error = str(e)
     
-    content = """
-        <div class="header-title"><h1>Registrar Nueva Tienda</h1></div>
-        <div class="table-box" style="max-width: 600px;">
-            ERROR_PLACEHOLDER
-            <form method="POST">
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre Comercial del Local</label>
-                <input type="text" name="nombre" placeholder="Ej. Urban Style" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Identificador URL (Slug sin espacios)</label>
-                <input type="text" name="slug" placeholder="Ej. urban-style" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Usuario Administrador</label>
-                <input type="text" name="admin_user" placeholder="Ej. urban_admin" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Contraseña del Administrador</label>
-                <input type="password" name="admin_pass" style="width:100%; padding:10px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <div style="display:flex; gap:10px;">
-                    <button type="submit" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Crear Tienda e Ir al Catálogo</button>
-                    <a href="/admin" style="background:#F4F4F5; color:var(--text-main); padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
-                </div>
-            </form>
-        </div>
-    """.replace("ERROR_PLACEHOLDER", error_html)
-
-    is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super).replace("CONTENT_PLACEHOLDER", content))
+    content = f"""
+        <h1>Registrar Tienda</h1>
+        {f'<p style="color:red;">{error}</p>' if error else ''}
+        <form method="POST">
+            <label>Nombre</label><input type="text" name="nombre" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+            <label>Slug</label><input type="text" name="slug" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+            <label>Admin User</label><input type="text" name="admin_user" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+            <label>Admin Pass</label><input type="password" name="admin_pass" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+            <button type="submit" style="background:var(--primary); color:white; padding:10px; border:none; border-radius:6px;">Crear</button>
+        </form>
+    """
+    return render_template_string(obtener_sidebar_admin(es_superadmin=True).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/pedidos")
 @login_required
@@ -877,113 +832,55 @@ def ver_pedidos():
     try:
         res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).order("id", desc=True).execute()
         pedidos = res.data if res.data else []
-        
-        for ped in pedidos:
-            if ped.get('estado') == 'Pendiente':
-                pendientes_count += 1
-    except Exception as e:
+        for p in pedidos:
+            if p.get('estado') == 'Pendiente': pendientes_count += 1
+    except:
         pass
 
     rows = ""
     for ped in pedidos:
         p_id = ped.get('id')
         p_estado = ped.get('estado') or 'Pendiente'
-        tiempo_entrega = ped.get('tiempo_entrega') or 'No especificado'
+        talla_ped = ped.get('talla') or 'N/A'
         
         if p_estado == 'Completado':
-            badge_estado = '<span style="background:#ECFDF5; color:#047857; padding:6px 12px; border-radius:99px; font-size:0.8rem; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-circle-check"></i> Completado</span>'
-            acciones = f'''
-                <div style="display: flex; gap: 6px; white-space: nowrap;">
-                    <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Marcar este pedido como Cancelado?');" style="background:#FEE2E2; color:#991B1B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-ban"></i> Cancelar</a>
-                    <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
-                </div>
-            '''
+            badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:700;">Completado</span>'
+            acc = f'<a href="/admin/pedido/cancelar/{p_id}" style="background:#FEE2E2; color:#991B1B; padding:6px; border-radius:4px; text-decoration:none;">Cancelar</a>'
         elif p_estado == 'Cancelado':
-            badge_estado = '<span style="background:#FEF2F2; color:#991B1B; padding:6px 12px; border-radius:99px; font-size:0.8rem; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-circle-xmark"></i> Cancelado</span>'
-            acciones = f'''
-                <div style="display: flex; gap: 6px; white-space: nowrap;">
-                    <a href="/admin/pedido/completar/{p_id}" style="background:#ECFDF5; color:#047857; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-rotate-left"></i> Completar</a>
-                    <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
-                </div>
-            '''
+            badge = '<span style="background:#FEF2F2; color:#991B1B; padding:4px 10px; border-radius:99px; font-weight:700;">Cancelado</span>'
+            acc = f'<a href="/admin/pedido/completar/{p_id}" style="background:#ECFDF5; color:#047857; padding:6px; border-radius:4px; text-decoration:none;">Completar</a>'
         else:
-            badge_estado = '<span style="background:#FEF3C7; color:#B45309; padding:6px 12px; border-radius:99px; font-size:0.8rem; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-clock"></i> Pendiente</span>'
-            acciones = f'''
-                <div style="display: flex; gap: 6px; white-space: nowrap;">
-                    <a href="/admin/pedido/completar/{p_id}" style="background:#047857; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-check"></i> Completar</a>
-                    <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Deseas marcar este pedido como Cancelado?');" style="background:#EF4444; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-xmark"></i> Cancelar</a>
-                </div>
-            '''
+            badge = '<span style="background:#FEF3C7; color:#B45309; padding:4px 10px; border-radius:99px; font-weight:700;">Pendiente</span>'
+            acc = f'<a href="/admin/pedido/completar/{p_id}" style="background:#047857; color:white; padding:6px; border-radius:4px; text-decoration:none; margin-right:4px;">Listo</a><a href="/admin/pedido/cancelar/{p_id}" style="background:#EF4444; color:white; padding:6px; border-radius:4px; text-decoration:none;">Cancelar</a>'
 
-        rows += f"""
-        <tr>
-            <td><strong>#{p_id}</strong></td>
-            <td><strong>{ped.get('cliente') or 'Cliente'}</strong></td>
-            <td><a href="https://wa.me/{ped.get('telefono')}" target="_blank" style="color:#047857; font-weight:700; text-decoration:none; white-space:nowrap;"><i class="fa-brands fa-whatsapp"></i> {ped.get('telefono')}</a></td>
-            <td><span style="background:#F4F4F5; color:#18181B; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.85rem; white-space:nowrap;">{ped.get('metodo_pago') or 'Efectivo'}</span></td>
-            <td><span style="background:#EFF6FF; color:#1E40AF; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.8rem; white-space:nowrap;"><i class="fa-solid fa-truck-fast"></i> {tiempo_entrega}</span></td>
-            <td style="max-width: 150px; word-break: break-word;">{ped.get('notas') or 'Sin notas'}</td>
-            <td>{badge_estado}</td>
-            <td>{acciones}</td>
-        </tr>
-        """
+        rows += f"<tr><td><strong>#{p_id}</strong></td><td>{ped.get('cliente')}</td><td><b>{talla_ped}</b></td><td>{ped.get('metodo_pago')}</td><td>{ped.get('tiempo_entrega')}</td><td>{badge}</td><td>{acc}</td></tr>"
 
-    rows_html = rows if rows else '<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:30px;">No hay encargos registrados en este momento.</td></tr>'
-    
     content = f"""
-        <div class="header-title">
-            <h1>Encargos Recibidos</h1>
-            <p style="color:var(--text-muted); font-size:0.9rem;">Administra tus ventas, plazos de entrega y cancelaciones.</p>
-        </div>
+        <h1>Encargos Recibidos</h1>
         <div class="table-box">
             <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Cliente</th>
-                        <th>WhatsApp</th>
-                        <th>Pago</th>
-                        <th>Plazo de Entrega</th>
-                        <th>Notas</th>
-                        <th>Estatus</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>{rows_html}</tbody>
+                <thead><tr><th>ID</th><th>Cliente</th><th>Talla</th><th>Pago</th><th>Entrega</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="7" style="text-align:center;">No hay encargos.</td></tr>'}</tbody>
             </table>
         </div>
     """
-
-    is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False), pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/pedido/completar/<int:id>")
 @login_required
 def completar_pedido(id):
-    tienda_id = session.get("tienda_id")
     try:
-        supabase.table("pedidos").update({"estado": "Completado"}).eq("id", id).eq("tienda_id", tienda_id).execute()
-    except Exception as e:
+        supabase.table("pedidos").update({"estado": "Completado"}).eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
+    except:
         pass
     return redirect(url_for("ver_pedidos"))
 
 @app.route("/admin/pedido/cancelar/<int:id>")
 @login_required
 def cancelar_pedido(id):
-    tienda_id = session.get("tienda_id")
     try:
-        supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", id).eq("tienda_id", tienda_id).execute()
-    except Exception as e:
-        pass
-    return redirect(url_for("ver_pedidos"))
-
-@app.route("/admin/pedido/eliminar/<int:id>")
-@login_required
-def eliminar_pedido(id):
-    tienda_id = session.get("tienda_id")
-    try:
-        supabase.table("pedidos").delete().eq("id", id).eq("tienda_id", tienda_id).execute()
-    except Exception as e:
+        supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
+    except:
         pass
     return redirect(url_for("ver_pedidos"))
 
@@ -992,371 +889,113 @@ def eliminar_pedido(id):
 def ver_productos():
     tienda_id = session.get("tienda_id")
     productos = []
-    pendientes_count = 0
     try:
         res = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
         productos = res.data if res.data else []
-        
-        res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
-        pendientes_count = len(res_ped.data) if res_ped.data else 0
-    except Exception as e:
+    except:
         pass
 
     rows = ""
     for p in productos:
-        img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
-        rows += f"""
-        <tr>
-            <td><strong>#{p.get('id')}</strong></td>
-            <td><img src="{img_url}" class="img-preview-thumb"></td>
-            <td>{p.get('nombre')}</td>
-            <td><strong>${p.get('precio')} MXN</strong></td>
-            <td>{p.get('stock', 0)} pzas</td>
-            <td>
-                <a href="/admin/producto/editar/{p.get('id')}" style="background:#F4F4F5; color:#18181B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;"><i class="fa-solid fa-pen"></i> Editar</a>
-                <a href="/admin/producto/eliminar/{p.get('id')}" onclick="return confirm('¿Estás seguro de eliminar este producto?');" style="background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
-            </td>
-        </tr>
-        """
+        img = p.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+        rows += f"<tr><td>#{p.get('id')}</td><td><img src='{img}' style='width:40px;height:40px;object-fit:cover;border-radius:4px;'></td><td>{p.get('nombre')}</td><td><b>${p.get('precio')}</b></td><td>CH:{p.get('stock_ch',0)} | M:{p.get('stock_m',0)} | G:{p.get('stock_g',0)} | XG:{p.get('stock_xg',0)}</td><td><a href='/admin/producto/eliminar/{p.get('id')}' style='color:red;'>Borrar</a></td></tr>"
 
-    rows_html = rows if rows else '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay productos registrados.</td></tr>'
-    
-    content = """
-        <div class="header-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <h1>Inventario de Productos</h1>
-            <a href="/admin/producto/nuevo" style="background:var(--primary); color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600; font-size:0.9rem;"><i class="fa-solid fa-plus"></i> Añadir Prenda</a>
+    content = f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h1>Inventario</h1>
+            <a href="/admin/producto/nuevo" style="background:var(--primary); color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:700;">Añadir Prenda</a>
         </div>
         <div class="table-box">
             <table>
-                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock</th><th>Acciones</th></tr></thead>
-                <tbody>ROWS_PLACEHOLDER</tbody>
+                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock por Talla</th><th>Acciones</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="6" style="text-align:center;">No hay productos.</td></tr>'}</tbody>
             </table>
         </div>
-    """.replace("ROWS_PLACEHOLDER", rows_html)
-
-    is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
+    """
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/nuevo", methods=["GET", "POST"])
 @login_required
 def nuevo_producto():
     tienda_id = session.get("tienda_id")
-    error = None
-    
-    categorias = []
-    pendientes_count = 0
-    try:
-        res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
-        categorias = res_cat.data if res_cat.data else []
-        
-        res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
-        pendientes_count = len(res_ped.data) if res_ped.data else 0
-    except:
-        pass
-
     if request.method == "POST":
-        nombre = request.form.get("nombre")
-        precio = request.form.get("precio")
-        stock = request.form.get("stock")
-        categoria_id = request.form.get("categoria_id")
-        imagen_url = request.form.get("imagen_recortada")
-        
         try:
             supabase.table("productos").insert({
                 "tienda_id": tienda_id,
-                "nombre": nombre,
-                "precio": float(precio) if precio else 0,
-                "stock": int(stock) if stock else 1,
-                "categoria_id": int(categoria_id) if categoria_id else None,
-                "imagen_url": imagen_url
+                "nombre": request.form.get("nombre"),
+                "precio": float(request.form.get("precio") or 0),
+                "stock_ch": int(request.form.get("stock_ch") or 0),
+                "stock_m": int(request.form.get("stock_m") or 0),
+                "stock_g": int(request.form.get("stock_g") or 0),
+                "stock_xg": int(request.form.get("stock_xg") or 0),
+                "imagen_url": request.form.get("imagen_recortada")
             }).execute()
             return redirect(url_for("ver_productos"))
         except Exception as e:
-            error = f"Error al guardar: {e}"
+            return f"Error: {e}"
 
-    options_cat = "".join([f"<option value='{c.get('id')}'>{c.get('nombre')}</option>" for c in categorias])
-    error_html = f'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">{error}</p>' if error else ''
-    
     content = """
-        <div class="header-title"><h1>Nuevo Producto</h1></div>
-        <div class="table-box" style="max-width: 600px;">
-            ERROR_PLACEHOLDER
-            <form method="POST" id="formProducto">
-                <input type="hidden" name="imagen_recortada" id="imagen_recortada">
+        <h1>Nuevo Producto con Tallas</h1>
+        <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
+            <input type="hidden" name="imagen_recortada" id="imagen_recortada" required>
+            <label>Nombre</label><input type="text" name="nombre" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                <div><label>Stock CH</label><input type="number" name="stock_ch" value="5" style="width:100%; padding:8px;"></div>
+                <div><label>Stock M</label><input type="number" name="stock_m" value="5" style="width:100%; padding:8px;"></div>
+                <div><label>Stock G</label><input type="number" name="stock_g" value="5" style="width:100%; padding:8px;"></div>
+                <div><label>Stock XG</label><input type="number" name="stock_xg" value="5" style="width:100%; padding:8px;"></div>
+            </div>
 
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre de la Prenda</label>
-                <input type="text" name="nombre" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Precio (MXN)</label>
-                <input type="number" step="0.01" name="precio" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Stock Inicial</label>
-                <input type="number" name="stock" value="10" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Categoría</label>
-                <select name="categoria_id" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; background:white;">
-                    OPTIONS_CAT_PLACEHOLDER
-                </select>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fotografía (Toma o Selecciona)</label>
-                <input type="file" id="inputFoto" accept="image/*" style="width:100%; padding:8px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+            <label>Foto (Recortar)</label><input type="file" id="inputFoto" accept="image/*" style="width:100%; margin-bottom:16px;" required>
+            
+            <div id="editorContainer" style="display:none; background:#18181B; padding:10px; border-radius:8px; text-align:center; margin-bottom:16px;">
+                <div style="max-height:250px; overflow:hidden; margin-bottom:8px;"><img id="imagenParaRecortar" style="max-width:100%;"></div>
+                <button type="button" onclick="cropper.rotate(90)" style="background:#3F3F46; color:white; border:none; padding:6px 10px; border-radius:4px;">Girar</button>
+                <button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:6px 10px; border-radius:4px;">Aplicar Recorte</button>
+            </div>
 
-                <div id="editorContainer" style="display:none; margin-bottom:20px; background:#18181B; padding:15px; border-radius:8px; text-align:center;">
-                    <div style="max-height: 350px; overflow: hidden; margin-bottom: 12px;">
-                        <img id="imagenParaRecortar" style="max-width: 100%;">
-                    </div>
-                    <div style="display:flex; gap:10px; justify-content:center;">
-                        <button type="button" onclick="girarImagen()" style="background:#3F3F46; color:white; border:none; padding:8px 14px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-rotate-right"></i> Girar</button>
-                        <button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-check"></i> Aplicar Recorte</button>
-                    </div>
-                </div>
+            <div id="vistaPreviaBox" style="display:none; text-align:center; margin-bottom:16px;">
+                <img id="imgResultadoPrev" style="width:80px; height:80px; object-fit:cover; border-radius:6px;">
+            </div>
 
-                <div id="vistaPreviaBox" style="display:none; margin-bottom:20px; text-align:center;">
-                    <p style="font-size:0.8rem; color:#047857; font-weight:700; margin-bottom:6px;"><i class="fa-solid fa-circle-check"></i> Imagen recortada y lista</p>
-                    <img id="imgResultadoPrev" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
-                </div>
-                
-                <div style="display:flex; gap:10px;">
-                    <button type="submit" id="btnGuardar" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Guardar Producto</button>
-                    <a href="/productos" style="background:#F4F4F5; color:var(--text-main); padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
-                </div>
-            </form>
-        </div>
+            <button type="submit" style="background:var(--primary); color:white; padding:10px 20px; border:none; border-radius:6px; font-weight:700;">Guardar Producto</button>
+        </form>
 
         <script>
             let cropper = null;
-            const inputFoto = document.getElementById('inputFoto');
-            const editorContainer = document.getElementById('editorContainer');
-            const imagenParaRecortar = document.getElementById('imagenParaRecortar');
-            const vistaPreviaBox = document.getElementById('vistaPreviaBox');
-            const imgResultadoPrev = document.getElementById('imgResultadoPrev');
-            const inputBase64 = document.getElementById('imagen_recortada');
-
-            inputFoto.addEventListener('change', function(e) {
-                const files = e.target.files;
-                if (files && files.length > 0) {
-                    const file = files[0];
+            document.getElementById('inputFoto').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
                     const reader = new FileReader();
-                    reader.onload = function(event) {
-                        imagenParaRecortar.src = event.target.result;
-                        editorContainer.style.display = 'block';
-                        vistaPreviaBox.style.display = 'none';
-                        
-                        if (cropper) {
-                            cropper.destroy();
-                        }
-                        cropper = new Cropper(imagenParaRecortar, {
-                            aspectRatio: 1,
-                            viewMode: 1,
-                            autoCropArea: 0.9,
-                        });
+                    reader.onload = function(ev) {
+                        document.getElementById('imagenParaRecortar').src = ev.target.result;
+                        document.getElementById('editorContainer').style.display = 'block';
+                        if (cropper) cropper.destroy();
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
                     };
                     reader.readAsDataURL(file);
                 }
             });
-
-            function girarImagen() {
-                if (cropper) {
-                    cropper.rotate(90);
-                }
-            }
-
             function confirmarRecorte() {
-                if (cropper) {
-                    const canvas = cropper.getCroppedCanvas({
-                        width: 600,
-                        height: 600
-                    });
-                    const base64String = canvas.toDataURL('image/jpeg');
-                    
-                    inputBase64.value = base64String;
-                    imgResultadoPrev.src = base64String;
-                    
-                    editorContainer.style.display = 'none';
-                    vistaPreviaBox.style.display = 'block';
-                }
+                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+                const b64 = canvas.toDataURL('image/jpeg');
+                document.getElementById('imagen_recortada').value = b64;
+                document.getElementById('imgResultadoPrev').src = b64;
+                document.getElementById('editorContainer').style.display = 'none';
+                document.getElementById('vistaPreviaBox').style.display = 'block';
             }
         </script>
-    """.replace("ERROR_PLACEHOLDER", error_html).replace("OPTIONS_CAT_PLACEHOLDER", options_cat)
-
-    is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
-
-@app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
-@login_required
-def editar_producto(id):
-    tienda_id = session.get("tienda_id")
-    error = None
-    
-    try:
-        res_prod = supabase.table("productos").select("*").eq("id", id).eq("tienda_id", tienda_id).execute()
-        if not res_prod.data:
-            return redirect(url_for("ver_productos"))
-        producto = res_prod.data[0]
-    except:
-        return redirect(url_for("ver_productos"))
-
-    categorias = []
-    pendientes_count = 0
-    try:
-        res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
-        categorias = res_cat.data if res_cat.data else []
-        
-        res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
-        pendientes_count = len(res_ped.data) if res_ped.data else 0
-    except:
-        pass
-
-    if request.method == "POST":
-        nombre = request.form.get("nombre")
-        precio = request.form.get("precio")
-        stock = request.form.get("stock")
-        categoria_id = request.form.get("categoria_id")
-        
-        nueva_imagen = request.form.get("imagen_recortada")
-        if nueva_imagen and nueva_imagen != "":
-            imagen_url = nueva_imagen
-        else:
-            imagen_url = producto.get('imagen_url') or producto.get('imagen')
-        
-        try:
-            supabase.table("productos").update({
-                "nombre": nombre,
-                "precio": float(precio) if precio else 0,
-                "stock": int(stock) if stock else 0,
-                "categoria_id": int(categoria_id) if categoria_id else None,
-                "imagen_url": imagen_url
-            }).eq("id", id).eq("tienda_id", tienda_id).execute()
-            return redirect(url_for("ver_productos"))
-        except Exception as e:
-            error = f"Error al actualizar: {e}"
-
-    options_cat = "".join([f"<option value='{c.get('id')}' {'selected' if str(c.get('id')) == str(producto.get('categoria_id')) else ''}>{c.get('nombre')}</option>" for c in categorias])
-    foto_actual = producto.get('imagen_url') or producto.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
-    error_html = f'<p style="color:red; margin-bottom:12px; font-size:0.85rem;">{error}</p>' if error else ''
-    
-    content = """
-        <div class="header-title"><h1>Editar Producto</h1></div>
-        <div class="table-box" style="max-width: 600px;">
-            ERROR_PLACEHOLDER
-            <form method="POST">
-                <input type="hidden" name="imagen_recortada" id="imagen_recortada">
-
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Nombre de la Prenda</label>
-                <input type="text" name="nombre" value="PROD_NOMBRE" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Precio (MXN)</label>
-                <input type="number" step="0.01" name="precio" value="PROD_PRECIO" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Stock Actual</label>
-                <input type="number" name="stock" value="PROD_STOCK" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Categoría</label>
-                <select name="categoria_id" style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; background:white;">
-                    OPTIONS_CAT_PLACEHOLDER
-                </select>
-                
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Fotografía Actual</label>
-                <div style="margin-bottom: 12px;">
-                    <img src="FOTO_ACTUAL_PLACEHOLDER" style="width:80px; height:80px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
-                </div>
-
-                <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Cambiar y Recortar Nueva Foto (Opcional)</label>
-                <input type="file" id="inputFoto" accept="image/*" style="width:100%; padding:8px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;">
-
-                <div id="editorContainer" style="display:none; margin-bottom:20px; background:#18181B; padding:15px; border-radius:8px; text-align:center;">
-                    <div style="max-height: 350px; overflow: hidden; margin-bottom: 12px;">
-                        <img id="imagenParaRecortar" style="max-width: 100%;">
-                    </div>
-                    <div style="display:flex; gap:10px; justify-content:center;">
-                        <button type="button" onclick="girarImagen()" style="background:#3F3F46; color:white; border:none; padding:8px 14px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-rotate-right"></i> Girar</button>
-                        <button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-weight:600;"><i class="fa-solid fa-check"></i> Aplicar Recorte</button>
-                    </div>
-                </div>
-
-                <div id="vistaPreviaBox" style="display:none; margin-bottom:20px; text-align:center;">
-                    <p style="font-size:0.8rem; color:#047857; font-weight:700; margin-bottom:6px;"><i class="fa-solid fa-circle-check"></i> Nueva foto lista</p>
-                    <img id="imgResultadoPrev" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid var(--border);">
-                </div>
-                
-                <div style="display:flex; gap:10px;">
-                    <button type="submit" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:6px; font-weight:700; cursor:pointer;">Actualizar</button>
-                    <a href="/productos" style="background:#F4F4F5; color:var(--text-main); padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;">Cancelar</a>
-                </div>
-            </form>
-        </div>
-
-        <script>
-            let cropper = null;
-            const inputFoto = document.getElementById('inputFoto');
-            const editorContainer = document.getElementById('editorContainer');
-            const imagenParaRecortar = document.getElementById('imagenParaRecortar');
-            const vistaPreviaBox = document.getElementById('vistaPreviaBox');
-            const imgResultadoPrev = document.getElementById('imgResultadoPrev');
-            const inputBase64 = document.getElementById('imagen_recortada');
-
-            inputFoto.addEventListener('change', function(e) {
-                const files = e.target.files;
-                if (files && files.length > 0) {
-                    const file = files[0];
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        imagenParaRecortar.src = event.target.result;
-                        editorContainer.style.display = 'block';
-                        vistaPreviaBox.style.display = 'none';
-                        
-                        if (cropper) {
-                            cropper.destroy();
-                        }
-                        cropper = new Cropper(imagenParaRecortar, {
-                            aspectRatio: 1,
-                            viewMode: 1,
-                            autoCropArea: 0.9,
-                        });
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-
-            function girarImagen() {
-                if (cropper) {
-                    cropper.rotate(90);
-                }
-            }
-
-            function confirmarRecorte() {
-                if (cropper) {
-                    const canvas = cropper.getCroppedCanvas({
-                        width: 600,
-                        height: 600
-                    });
-                    const base64String = canvas.toDataURL('image/jpeg');
-                    
-                    inputBase64.value = base64String;
-                    imgResultadoPrev.src = base64String;
-                    
-                    editorContainer.style.display = 'none';
-                    vistaPreviaBox.style.display = 'block';
-                }
-            }
-        </script>
-    """.replace("ERROR_PLACEHOLDER", error_html) \
-       .replace("PROD_NOMBRE", producto.get('nombre', '')) \
-       .replace("PROD_PRECIO", str(producto.get('precio', 0))) \
-       .replace("PROD_STOCK", str(producto.get('stock', 0))) \
-       .replace("OPTIONS_CAT_PLACEHOLDER", options_cat) \
-       .replace("FOTO_ACTUAL_PLACEHOLDER", foto_actual)
-
-    is_super = session.get("is_superadmin", False)
-    return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
+    """
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/eliminar/<int:id>")
 @login_required
 def eliminar_producto(id):
-    tienda_id = session.get("tienda_id")
     try:
-        supabase.table("productos").delete().eq("id", id).eq("tienda_id", tienda_id).execute()
-    except Exception as e:
+        supabase.table("productos").delete().eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
+    except:
         pass
     return redirect(url_for("ver_productos"))
 
