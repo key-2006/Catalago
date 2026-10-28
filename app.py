@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template_string, redirect, url_for, session
 from functools import wraps
 from supabase import create_client, Client
+from datetime import datetime, timezone, timedelta
 import base64
 
 app = Flask(__name__)
@@ -304,8 +305,15 @@ def catalogo_tienda(slug):
                         <option value="Tarjeta de Débito/Crédito">Tarjeta de Débito / Crédito</option>
                     </select>
 
+                    <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Tiempo de Entrega Deseado</label>
+                    <select name="tiempo_entrega" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;" required>
+                        <option value="Entrega Inmediata (Hoy / Mañana)">⚡ Entrega Inmediata (Hoy / Mañana)</option>
+                        <option value="En 2 a 3 días">📦 En 2 a 3 días</option>
+                        <option value="Programado (Más de 3 días)">📅 Programado (Más de 3 días)</option>
+                    </select>
+
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Notas o Talla Deseada</label>
-                    <textarea name="notas" rows="3" style="width:100%; padding:10px 12px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; resize:none;"></textarea>
+                    <textarea name="notas" rows="2" style="width:100%; padding:10px 12px; margin:6px 0 20px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; resize:none;"></textarea>
                     
                     <div style="display: flex; gap: 10px;">
                         <button type="submit" style="flex: 1; background: var(--primary); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 700; cursor: pointer;">Confirmar</button>
@@ -348,6 +356,7 @@ def hacer_encargo():
     nombre_cliente = request.form.get("nombre_cliente")
     telefono = request.form.get("telefono")
     metodo_pago = request.form.get("metodo_pago")
+    tiempo_entrega = request.form.get("tiempo_entrega")
     notas = request.form.get("notas")
     
     try:
@@ -356,6 +365,7 @@ def hacer_encargo():
             "cliente": nombre_cliente,
             "telefono": telefono,
             "metodo_pago": metodo_pago,
+            "tiempo_entrega": tiempo_entrega,
             "notas": notas,
             "producto_id": producto_id,
             "estado": "Pendiente"
@@ -460,7 +470,7 @@ def super_admin_panel():
         t_slug = t.get('slug')
         activa = t.get('subscripcion_activa', True)
         
-        status_badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Al Corriente (Activa)</span>' if activa else '<span style="background:#FEF2F2; color:#B91C1C; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Suspendida (Pendiente de Pago)</span>'
+        status_badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Al Corriente (Activa)</span>' if activa else '<span style="background:#FEF2F2; color:#B91C1C; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Suspendida</span>'
         btn_accion = f'<a href="/super-admin/cambiar-estatus/{t_id}" style="background:{"#B91C1C" if activa else "#047857"}; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;">{"Suspender" if activa else "Activar"}</a>'
         
         rows += f"""
@@ -524,7 +534,13 @@ def cambiar_estatus_tienda(id):
         if res.data:
             estado_actual = res.data[0].get("subscripcion_activa", True)
             nuevo_estado = not estado_actual
-            supabase.table("tiendas").update({"subscripcion_activa": nuevo_estado}).eq("id", id).execute()
+            nueva_fecha = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat() if nuevo_estado else None
+            
+            update_data = {"subscripcion_activa": nuevo_estado}
+            if nueva_fecha:
+                update_data["fecha_corte"] = nueva_fecha
+
+            supabase.table("tiendas").update(update_data).eq("id", id).execute()
     except Exception as e:
         pass
     
@@ -535,14 +551,37 @@ def cambiar_estatus_tienda(id):
 def admin_index():
     tienda_id = session.get("tienda_id")
     nombre_tienda = "Mi Local"
+    fecha_corte_str = None
+    
     try:
-        res = supabase.table("tiendas").select("nombre").eq("id", tienda_id).execute()
-        if res.data:
-            nombre_tienda = res.data[0].get("nombre")
+        res_t = supabase.table("tiendas").select("nombre, fecha_corte").eq("id", tienda_id).execute()
+        if res_t.data:
+            nombre_tienda = res_t.data[0].get("nombre")
+            fecha_corte_str = res_t.data[0].get("fecha_corte")
     except:
         pass
 
-    # Contar pedidos pendientes para mostrar alerta visual en el inicio
+    # Calcular si al dueño de la tienda le quedan 2 semanas o menos para su corte
+    alerta_corte_tienda_html = ""
+    if fecha_corte_str:
+        try:
+            ahora = datetime.now(timezone.utc)
+            f_corte = datetime.fromisoformat(fecha_corte_str.replace('Z', '+00:00'))
+            dias_restantes = (f_corte - ahora).days
+            
+            if dias_restantes <= 14 and dias_restantes >= 0:
+                alerta_corte_tienda_html = f"""
+                <div style="background: #FEF3C7; border: 1px solid #F59E0B; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color: #D97706; font-size: 1.2rem;"></i>
+                    <div>
+                        <h4 style="color: #92400E; font-size: 0.95rem; font-weight: 700;">¡Tu servicio está próximo a vencer!</h4>
+                        <p style="color: #B45309; font-size: 0.85rem; margin-top: 2px;">Quedan {dias_restantes} día(s) para el corte de tu plataforma. Contacta al administrador para renovar tu suscripción.</p>
+                    </div>
+                </div>
+                """
+        except:
+            pass
+
     pendientes_count = 0
     try:
         res_ped = supabase.table("pedidos").select("id", count="exact").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
@@ -570,6 +609,7 @@ def admin_index():
         """
 
     content = f"""
+        {alerta_corte_tienda_html}
         {alerta_pendientes_html}
         <div class="header-title">
             <h1>Panel Administrativo</h1>
@@ -620,10 +660,12 @@ def nueva_tienda():
         admin_pass = request.form.get("admin_pass")
         
         try:
+            f_corte_inicial = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
             res_t = supabase.table("tiendas").insert({
                 "nombre": nombre_tienda,
                 "slug": slug_tienda,
-                "subscripcion_activa": True
+                "subscripcion_activa": True,
+                "fecha_corte": f_corte_inicial
             }).execute()
             
             if res_t.data:
@@ -678,7 +720,7 @@ def ver_pedidos():
     pedidos = []
     pendientes_count = 0
     try:
-        res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).execute()
+        res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).order("id", desc=True).execute()
         pedidos = res.data if res.data else []
         
         for ped in pedidos:
@@ -689,31 +731,100 @@ def ver_pedidos():
 
     rows = ""
     for ped in pedidos:
+        p_id = ped.get('id')
+        p_estado = ped.get('estado') or 'Pendiente'
+        tiempo_entrega = ped.get('tiempo_entrega') or 'No especificado'
+        
+        if p_estado == 'Completado':
+            badge_estado = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700;"><i class="fa-solid fa-circle-check"></i> Completado</span>'
+            acciones = f'''
+                <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Marcar este pedido como Cancelado?');" style="background:#FEE2E2; color:#991B1B; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem; margin-right:4px;"><i class="fa-solid fa-ban"></i> Cancelar</a>
+                <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
+            '''
+        elif p_estado == 'Cancelado':
+            badge_estado = '<span style="background:#FEF2F2; color:#991B1B; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700;"><i class="fa-solid fa-circle-xmark"></i> Cancelado</span>'
+            acciones = f'''
+                <a href="/admin/pedido/completar/{p_id}" style="background:#ECFDF5; color:#047857; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem; margin-right:4px;"><i class="fa-solid fa-rotate-left"></i> Completar</a>
+                <a href="/admin/pedido/eliminar/{p_id}" onclick="return confirm('¿Deseas borrar definitivamente este registro?');" style="background:#F4F4F5; color:#71717A; padding:6px 10px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-trash"></i> Borrar</a>
+            '''
+        else:
+            badge_estado = '<span style="background:#FEF3C7; color:#B45309; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:700;"><i class="fa-solid fa-clock"></i> Pendiente</span>'
+            acciones = f'''
+                <a href="/admin/pedido/completar/{p_id}" style="background:#047857; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;"><i class="fa-solid fa-check"></i> Marcar Completado</a>
+                <a href="/admin/pedido/cancelar/{p_id}" onclick="return confirm('¿Deseas marcar este pedido como Cancelado?');" style="background:#EF4444; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-xmark"></i> Cancelar Pedido</a>
+            '''
+
         rows += f"""
         <tr>
-            <td><strong>#{ped.get('id')}</strong></td>
-            <td>{ped.get('cliente') or 'Cliente'}</td>
+            <td><strong>#{p_id}</strong></td>
+            <td><strong>{ped.get('cliente') or 'Cliente'}</strong></td>
             <td><a href="https://wa.me/{ped.get('telefono')}" target="_blank" style="color:#047857; font-weight:700; text-decoration:none;"><i class="fa-brands fa-whatsapp"></i> {ped.get('telefono')}</a></td>
-            <td><span style="background:#F4F4F5; color:#18181B; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.85rem;">{ped.get('metodo_pago') or 'No especificado'}</span></td>
+            <td><span style="background:#F4F4F5; color:#18181B; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.85rem;">{ped.get('metodo_pago') or 'Efectivo'}</span></td>
+            <td><span style="background:#EFF6FF; color:#1E40AF; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.8rem;"><i class="fa-solid fa-truck-fast"></i> {tiempo_entrega}</span></td>
             <td>{ped.get('notas') or 'Sin notas'}</td>
-            <td><span style="background:#FEF3C7; color:#B45309; padding:4px 10px; border-radius:99px; font-size:0.8rem; font-weight:600;">{ped.get('estado') or 'Pendiente'}</span></td>
+            <td>{badge_estado}</td>
+            <td>{acciones}</td>
         </tr>
         """
 
-    rows_html = rows if rows else '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No hay encargos registrados.</td></tr>'
+    rows_html = rows if rows else '<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:30px;">No hay encargos registrados en este momento.</td></tr>'
     
-    content = """
-        <div class="header-title"><h1>Encargos Recibidos</h1></div>
+    content = f"""
+        <div class="header-title">
+            <h1>Encargos Recibidos</h1>
+            <p style="color:var(--text-muted); font-size:0.9rem;">Administra tus ventas, plazos de entrega y cancelaciones.</p>
+        </div>
         <div class="table-box">
             <table>
-                <thead><tr><th>ID</th><th>Cliente</th><th>WhatsApp</th><th>Método de Pago</th><th>Notas</th><th>Estado</th></tr></thead>
-                <tbody>ROWS_PLACEHOLDER</tbody>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Cliente</th>
+                        <th>WhatsApp</th>
+                        <th>Pago</th>
+                        <th>Plazo de Entrega</th>
+                        <th>Notas</th>
+                        <th>Estatus</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>{rows_html}</tbody>
             </table>
         </div>
-    """.replace("ROWS_PLACEHOLDER", rows_html)
+    """
 
     is_super = session.get("is_superadmin", False)
     return render_template_string(obtener_sidebar_admin(es_superadmin=is_super, pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
+
+@app.route("/admin/pedido/completar/<int:id>")
+@login_required
+def completar_pedido(id):
+    tienda_id = session.get("tienda_id")
+    try:
+        supabase.table("pedidos").update({"estado": "Completado"}).eq("id", id).eq("tienda_id", tienda_id).execute()
+    except Exception as e:
+        pass
+    return redirect(url_for("ver_pedidos"))
+
+@app.route("/admin/pedido/cancelar/<int:id>")
+@login_required
+def cancelar_pedido(id):
+    tienda_id = session.get("tienda_id")
+    try:
+        supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", id).eq("tienda_id", tienda_id).execute()
+    except Exception as e:
+        pass
+    return redirect(url_for("ver_pedidos"))
+
+@app.route("/admin/pedido/eliminar/<int:id>")
+@login_required
+def eliminar_pedido(id):
+    tienda_id = session.get("tienda_id")
+    try:
+        supabase.table("pedidos").delete().eq("id", id).eq("tienda_id", tienda_id).execute()
+    except Exception as e:
+        pass
+    return redirect(url_for("ver_pedidos"))
 
 @app.route("/productos")
 @login_required
@@ -1068,7 +1179,7 @@ def editar_producto(id):
                 }
             }
         </script>
-    """.replace("ERROR_PLACEHOLDER", error_html) \
+    """.replace("ERROR_PLACEHORN", error_html) \
        .replace("PROD_NOMBRE", producto.get('nombre', '')) \
        .replace("PROD_PRECIO", str(producto.get('precio', 0))) \
        .replace("PROD_STOCK", str(producto.get('stock', 0))) \
