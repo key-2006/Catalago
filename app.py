@@ -7,7 +7,6 @@ import base64
 app = Flask(__name__)
 app.secret_key = "clave_secreta_multiusuario_tiendas_123"
 
-# Conexión directa con Supabase
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
 SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
 
@@ -154,7 +153,15 @@ def catalogo_tienda(slug):
         categorias = res_cat.data if res_cat.data else []
         
         msg_exito = request.args.get("encargo_exito")
+        pedido_id_creado = request.args.get("pedido_id")
         
+        # Recuperar datos del pedido recién hecho si existe para el banner de confirmación
+        pedido_reciente = None
+        if pedido_id_creado:
+            res_p_rec = supabase.table("pedidos").select("*").eq("id", pedido_id_creado).execute()
+            if res_p_rec.data:
+                pedido_reciente = res_p_rec.data[0]
+
         res_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
         productos = res_prod.data if res_prod.data else []
 
@@ -263,13 +270,16 @@ def catalogo_tienda(slug):
             .btn-disabled { background: #E4E4E7; color: #A1A1AA; cursor: not-allowed; }
             .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; }
             .modal-box { background: white; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
-            .alert-toast { background: #065F46; color: white; padding: 12px; border-radius: 6px; max-width: 1200px; margin: 1.5rem auto 0; text-align: center; font-weight: 600; }
+            .alert-toast { background: #065F46; color: white; padding: 16px; border-radius: 8px; max-width: 1200px; margin: 1.5rem auto 0; text-align: center; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
         </style>
     </head>
     <body>
         <nav>
             <a href="/tienda/TIENDA_SLUG" class="logo"><i class="fa-solid fa-gem"></i> TIENDA_NOMBRE</a>
-            <a href="/login" style="color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="fa-solid fa-lock"></i> Acceso Admin</a>
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <a href="javascript:void(0);" onclick="consultarMiPedido()" style="color: var(--primary); text-decoration: none; font-weight: 700; font-size: 0.9rem; background: #EFF6FF; padding: 6px 12px; border-radius: 6px;"><i class="fa-solid fa-receipt"></i> Consultar / Cancelar mi Pedido</a>
+                <a href="/login" style="color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="fa-solid fa-lock"></i> Acceso Admin</a>
+            </div>
         </nav>
 
         <section class="hero">
@@ -332,12 +342,52 @@ def catalogo_tienda(slug):
             function cerrarModal() {
                 document.getElementById('modalEncargo').style.display = 'none';
             }
+            function consultarMiPedido() {
+                const ultimoId = localStorage.getItem('ultimo_pedido_id_TIENDA_SLUG');
+                if (!ultimoId) {
+                    alert('No encontramos ningún pedido reciente registrado desde este dispositivo.');
+                    return;
+                }
+                window.location.href = '/tienda/TIENDA_SLUG/mi-pedido/' + ultimoId;
+            }
         </script>
     </body>
     </html>
     """
 
-    alerta_html = '<div class="alert-toast">¡Tu encargo ha sido registrado correctamente! Nos pondremos en contacto contigo.</div>' if msg_exito else ''
+    alerta_html = ""
+    if msg_exito and pedido_reciente:
+        p_id = pedido_reciente.get('id')
+        p_cliente = pedido_reciente.get('cliente')
+        p_pago = pedido_reciente.get('metodo_pago')
+        p_entrega = pedido_reciente.get('tiempo_entrega')
+        
+        # Guardar en el navegador del cliente su último ID de pedido para que pueda consultarlo o cancelarlo
+        script_guardar_local = f"""
+        <script>
+            localStorage.setItem('ultimo_pedido_id_{slug}', '{p_id}');
+        </script>
+        """
+        
+        texto_whatsapp = f"Hola! Acabo de hacer un encargo en {tienda.get('nombre')}%0A*Folio:* #{p_id}%0A*Cliente:* {p_cliente}%0A*Pago:* {p_pago}%0A*Entrega:* {p_entrega}"
+        link_ws = f"https://wa.me/?text={texto_whatsapp}"
+
+        alerta_html = f"""
+        {script_guardar_local}
+        <div class="container-main" style="margin-bottom: 0;">
+            <div class="alert-toast">
+                <div>
+                    <i class="fa-solid fa-circle-check"></i> ¡Encargo #{p_id} registrado con éxito! 
+                    <div style="font-size: 0.85rem; font-weight: 400; margin-top: 4px; opacity: 0.9;">Puedes enviar tu comprobante directamente o cancelar tu pedido si lo deseas.</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <a href="{link_ws}" target="_blank" style="background: #25D366; color: white; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.85rem; display:flex; align-items:center; gap:6px;"><i class="fa-brands fa-whatsapp"></i> Enviar por WhatsApp</a>
+                    <a href="/tienda/{slug}/mi-pedido/{p_id}" style="background: white; color: #065F46; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.85rem;">Ver / Cancelar</a>
+                </div>
+            </div>
+        </div>
+        """
+
     contenido_grid = secciones_html if secciones_html else '<p style="text-align: center; color: var(--muted); padding: 4rem;">No hay prendas disponibles en este momento.</p>'
 
     html_final = plantilla_catalogo.replace("TIENDA_NOMBRE", tienda.get('nombre')) \
@@ -360,7 +410,7 @@ def hacer_encargo():
     notas = request.form.get("notas")
     
     try:
-        supabase.table("pedidos").insert({
+        res_ins = supabase.table("pedidos").insert({
             "tienda_id": tienda_id,
             "cliente": nombre_cliente,
             "telefono": telefono,
@@ -371,15 +421,121 @@ def hacer_encargo():
             "estado": "Pendiente"
         }).execute()
         
+        nuevo_pedido_id = res_ins.data[0].get('id') if res_ins.data else 1
+        
         res_prod = supabase.table("productos").select("stock").eq("id", producto_id).execute()
         if res_prod.data:
             stock_actual = res_prod.data[0].get('stock') if res_prod.data[0].get('stock') is not None else 1
             nuevo_stock = max(0, stock_actual - 1)
             supabase.table("productos").update({"stock": nuevo_stock}).eq("id", producto_id).execute()
 
-        return redirect(url_for("catalogo_tienda", slug=slug, encargo_exito=1))
+        return redirect(url_for("catalogo_tienda", slug=slug, encargo_exito=1, pedido_id=nuevo_pedido_id))
     except Exception as e:
         return f"Error al procesar el encargo: {e}"
+
+@app.route("/tienda/<slug>/mi-pedido/<int:pedido_id>")
+def ver_pedido_cliente(slug, pedido_id):
+    try:
+        res_t = supabase.table("tiendas").select("*").eq("slug", slug).execute()
+        if not res_t.data:
+            return redirect(url_for("catalogo_tienda", slug=slug))
+        tienda = res_t.data[0]
+        
+        res_p = supabase.table("pedidos").select("*").eq("id", pedido_id).execute()
+        if not res_p.data:
+            return f"<div style='padding:40px; font-family:sans-serif;'><h2>Pedido no encontrado.</h2><a href='/tienda/{slug}'>Regresar al catálogo</a></div>"
+        
+        pedido = res_p.data[0]
+    except Exception as e:
+        return f"Error: {e}"
+
+    estado = pedido.get('estado')
+    
+    estado_badge = ""
+    acciones_cliente = ""
+    
+    if estado == 'Completado':
+        estado_badge = '<span style="background:#ECFDF5; color:#047857; padding:6px 14px; border-radius:99px; font-weight:700;">Completado / Entregado</span>'
+        acciones_cliente = '<p style="color:#71717A; margin-top:20px;">Este pedido ya fue completado y entregado.</p>'
+    elif estado == 'Cancelado':
+        estado_badge = '<span style="background:#FEF2F2; color:#991B1B; padding:6px 14px; border-radius:99px; font-weight:700;">Cancelado</span>'
+        acciones_cliente = '<p style="color:#991B1B; font-weight:600; margin-top:20px;">Has cancelado este pedido con éxito.</p>'
+    else:
+        estado_badge = '<span style="background:#FEF3C7; color:#B45309; padding:6px 14px; border-radius:99px; font-weight:700;">Pendiente de Revisión</span>'
+        acciones_cliente = f'''
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+                <a href="/tienda/{slug}/cancelar-mi-pedido/{pedido_id}" onclick="return confirm('¿Estás seguro de que deseas cancelar este pedido? El stock será devuelto automáticamente.');" style="background:#EF4444; color:white; padding:12px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;"><i class="fa-solid fa-ban"></i> Cancelar mi Pedido</a>
+            </div>
+        '''
+
+    html_detalle = f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Detalle de mi Pedido - {tienda.get('nombre')}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
+            body {{ background: #F4F4F5; color: #18181B; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }}
+            .card {{ background: white; padding: 40px; border-radius: 12px; border: 1px solid #E4E4E7; width: 100%; max-width: 500px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }}
+            h2 {{ font-size: 1.5rem; font-weight: 800; margin-bottom: 6px; color: #18181B; }}
+            p.sub {{ color: #71717A; font-size: 0.9rem; margin-bottom: 24px; }}
+            .row {{ display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #F4F4F5; font-size: 0.95rem; }}
+            .label {{ color: #71717A; font-weight: 600; }}
+            .val {{ font-weight: 700; color: #18181B; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>Detalle de tu Encargo #{pedido.get('id')}</h2>
+            <p class="sub">{tienda.get('nombre')}</p>
+            
+            <div style="margin-bottom: 20px; text-align: center;">
+                {estado_badge}
+            </div>
+
+            <div class="row"><span class="label">Cliente:</span><span class="val">{pedido.get('cliente')}</span></div>
+            <div class="row"><span class="label">Teléfono:</span><span class="val">{pedido.get('telefono')}</span></div>
+            <div class="row"><span class="label">Método de Pago:</span><span class="val">{pedido.get('metodo_pago')}</span></div>
+            <div class="row"><span class="label">Plazo de Entrega:</span><span class="val">{pedido.get('tiempo_entrega')}</span></div>
+            <div class="row"><span class="label">Notas:</span><span class="val">{pedido.get('notas') or 'Sin notas'}</span></div>
+
+            {acciones_cliente}
+
+            <div style="margin-top: 24px; text-align: center;">
+                <a href="/tienda/{slug}" style="color: #1E3A8A; text-decoration: none; font-weight: 700; font-size: 0.9rem;"><i class="fa-solid fa-arrow-left"></i> Regresar al Catálogo</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return render_template_string(html_detalle)
+
+@app.route("/tienda/<slug>/cancelar-mi-pedido/<int:pedido_id>")
+def cancelar_mi_pedido(slug, pedido_id):
+    try:
+        # Obtener el pedido para saber qué producto tenía y devolver el stock
+        res_p = supabase.table("pedidos").select("*").eq("id", pedido_id).execute()
+        if res_p.data:
+            pedido = res_p.data[0]
+            prod_id = pedido.get('producto_id')
+            
+            # Cambiar estatus a Cancelado
+            supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", pedido_id).execute()
+            
+            # Devolver stock a la prenda
+            if prod_id:
+                res_prod = supabase.table("productos").select("stock").eq("id", prod_id).execute()
+                if res_prod.data:
+                    stock_actual = res_prod.data[0].get('stock') if res_prod.data[0].get('stock') is not None else 0
+                    supabase.table("productos").update({"stock": stock_actual + 1}).eq("id", prod_id).execute()
+    except Exception as e:
+        pass
+        
+    return redirect(url_for("ver_pedido_cliente", slug=slug, pedido_id=pedido_id))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
