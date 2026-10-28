@@ -1005,7 +1005,31 @@ def nuevo_producto():
             <button type="submit" style="background:var(--primary); color:white; padding:10px 20px; border:none; border-radius:6px; font-weight:700;">Guardar Producto</button>
         </form>
 
-        
+        <script>
+            let cropper = null;
+            document.getElementById('inputFoto').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        document.getElementById('imagenParaRecortar').src = ev.target.result;
+                        document.getElementById('editorContainer').style.display = 'block';
+                        if (cropper) cropper.destroy();
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            function confirmarRecorte() {
+                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+                const b64 = canvas.toDataURL('image/jpeg');
+                document.getElementById('imagen_recortada').value = b64;
+                document.getElementById('imgResultadoPrev').src = b64;
+                document.getElementById('editorContainer').style.display = 'none';
+                document.getElementById('vistaPreviaBox').style.display = 'block';
+            }
+        </script>
+    """
     return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
