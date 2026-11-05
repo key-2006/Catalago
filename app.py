@@ -294,13 +294,10 @@ def catalogo_tienda(slug):
             .hero { background: #18181B; color: white; padding: 3rem 1.5rem; text-align: center; margin: 0 auto; }
             .hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
             .hero p { color: #A1A1AA; font-size: 0.95rem; margin-bottom: 20px; }
-            
-            /* BARRA DE BÚSQUEDA */
             .search-box-wrapper { max-width: 500px; margin: 0 auto; position: relative; }
             .search-input { width: 100%; padding: 14px 20px 14px 45px; border-radius: 99px; border: 1px solid #3F3F46; background: #27272A; color: white; font-size: 0.95rem; outline: none; transition: all 0.2s; }
             .search-input:focus { border-color: #93C5FD; box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2); background: #18181B; }
             .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #A1A1AA; font-size: 1.1rem; }
-            
             .container-main { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem; }
             .category-section { margin-bottom: 3rem; }
             .category-section-title { font-size: 1.25rem; font-weight: 700; color: var(--text); margin-bottom: 1.2rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -837,17 +834,27 @@ def admin_index():
             pass
 
     pendientes_count = 0
+    stock_bajo_count = 0
     try:
         res_ped = supabase.table("pedidos").select("id").eq("tienda_id", tienda_id).eq("estado", "Pendiente").execute()
         pendientes_count = len(res_ped.data) if res_ped.data else 0
+        
+        res_prods = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
+        if res_prods.data:
+            for p in res_prods.data:
+                total_s = (p.get('stock_ch') or 0) + (p.get('stock_m') or 0) + (p.get('stock_g') or 0) + (p.get('stock_xg') or 0)
+                if total_s <= 3:
+                    stock_bajo_count += 1
     except:
         pass
 
-    alerta_pendientes = f'<div style="background: #FEF3C7; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>Tienes {pendientes_count} encargo(s) pendiente(s).</b> <a href="/pedidos">Ver Encargos</a></div>' if pendientes_count > 0 else ''
+    alerta_pendientes = f'<div style="background: #FEF3C7; padding: 16px; border-radius: 8px; margin-bottom: 16px;"><b>Tienes {pendientes_count} encargo(s) pendiente(s).</b> <a href="/pedidos">Ver Encargos</a></div>' if pendientes_count > 0 else ''
+    alerta_stock = f'<div style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Atención de Inventario!</b> Hay {stock_bajo_count} prenda(s) con stock bajo (3 piezas o menos). <a href="/productos" style="color: #991B1B; font-weight:700;">Revisar Productos</a></div>' if stock_bajo_count > 0 else ''
 
     content = f"""
         {alerta_corte}
         {alerta_pendientes}
+        {alerta_stock}
         <div class="header-title"><h1>Panel de {nombre_tienda}</h1></div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 600px;">
             <a href="/pedidos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Encargos</h3></div></a>
@@ -980,13 +987,25 @@ def ver_productos():
     rows = ""
     for p in productos:
         img = p.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+        sch = p.get('stock_ch', 0)
+        sm = p.get('stock_m', 0)
+        sg = p.get('stock_g', 0)
+        sxg = p.get('stock_xg', 0)
+        total_st = sch + sm + sg + sxg
+        
+        badge_estilo = "background:#ECFDF5; color:#047857;"
+        texto_alerta_stock = f"CH:{sch} | M:{sm} | G:{sg} | XG:{sxg}"
+        if total_st <= 3:
+            badge_estilo = "background:#FEF2F2; color:#B91C1B; font-weight:700;"
+            texto_alerta_stock += ' <span style="background:#B91C1B; color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem;">¡BAJO!</span>'
+
         rows += f"""
         <tr>
             <td>#{p.get('id')}</td>
             <td><img src='{img}' style='width:40px;height:40px;object-fit:cover;border-radius:4px;'></td>
             <td>{p.get('nombre')}</td>
             <td><b>${p.get('precio')}</b></td>
-            <td>CH:{p.get('stock_ch',0)} | M:{p.get('stock_m',0)} | G:{p.get('stock_g',0)} | XG:{p.get('stock_xg',0)}</td>
+            <td><span style="padding:4px 8px; border-radius:4px; {badge_estilo}">{texto_alerta_stock}</span></td>
             <td>
                 <a href='/admin/producto/editar/{p.get('id')}' style='background:#F4F4F5; color:#18181B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;'><i class='fa-solid fa-pen'></i> Editar</a>
                 <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
