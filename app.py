@@ -319,8 +319,6 @@ def catalogo_tienda(slug):
             .modal-box { background: white; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); max-height: 90vh; overflow-y: auto; }
             .alert-toast { background: #065F46; color: white; padding: 16px; border-radius: 8px; max-width: 1200px; margin: 1.5rem auto 0; text-align: center; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
             #noResultadosMsg { display: none; text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 1.1rem; }
-            
-            /* CAJA DE DATOS BANCARIOS */
             .box-banco { display: none; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 0.85rem; color: #1E3A8A; }
             .box-banco strong { display: block; margin-bottom: 4px; font-size: 0.9rem; }
         </style>
@@ -385,7 +383,6 @@ def catalogo_tienda(slug):
                         <option value="Tarjeta de Débito/Crédito">Tarjeta de Débito / Crédito</option>
                     </select>
 
-                    <!-- DESPLIEGUE DINÁMICO DE DATOS BANCARIOS -->
                     <div class="box-banco" id="boxDatosBancarios">
                         <strong><i class="fa-solid fa-building-columns"></i> Datos de Transferencia:</strong>
                         <p style="margin-top:4px;"><b>Banco:</b> BBVA México</p>
@@ -593,29 +590,11 @@ def ver_pedido_cliente(slug, pedido_id):
         
         res_p = supabase.table("pedidos").select("*").eq("id", pedido_id).execute()
         if not res_p.data:
-            return f"<div style='padding:40px; font-family:sans-serif;'><h2>Pedido no encontrado.</h2><a href='/tienda/{slug}'>Regresar al catálogo</a></div>"
+            return f"<div style='padding:40px; font-family:sans-serif;'><h2>El pedido ya fue procesado o no existe.</h2><a href='/tienda/{slug}'>Regresar al catálogo</a></div>"
         
         pedido = res_p.data[0]
     except Exception as e:
         return f"Error: {e}"
-
-    estado = pedido.get('estado')
-    estado_badge = ""
-    acciones_cliente = ""
-    
-    if estado == 'Completado':
-        estado_badge = '<span style="background:#ECFDF5; color:#047857; padding:6px 14px; border-radius:99px; font-weight:700;">Completado / Entregado</span>'
-        acciones_cliente = '<p style="color:#71717A; margin-top:20px;">Este pedido ya fue completado y entregado.</p>'
-    elif estado == 'Cancelado':
-        estado_badge = '<span style="background:#FEF2F2; color:#991B1B; padding:6px 14px; border-radius:99px; font-weight:700;">Cancelado</span>'
-        acciones_cliente = '<p style="color:#991B1B; font-weight:600; margin-top:20px;">Has cancelado este pedido con éxito.</p>'
-    else:
-        estado_badge = '<span style="background:#FEF3C7; color:#B45309; padding:6px 14px; border-radius:99px; font-weight:700;">Pendiente de Revisión</span>'
-        acciones_cliente = f'''
-            <div style="margin-top: 24px;">
-                <a href="/tienda/{slug}/cancelar-mi-pedido/{pedido_id}" onclick="return confirm('¿Deseas cancelar este pedido? La pieza devuelta regresará al inventario de su talla.');" style="background:#EF4444; color:white; padding:12px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:inline-block;"><i class="fa-solid fa-ban"></i> Cancelar mi Pedido</a>
-            </div>
-        '''
 
     html_detalle = f"""
     <!DOCTYPE html>
@@ -643,7 +622,7 @@ def ver_pedido_cliente(slug, pedido_id):
             <p class="sub">{tienda.get('nombre')}</p>
             
             <div style="margin-bottom: 20px; text-align: center;">
-                {estado_badge}
+                <span style="background:#FEF3C7; color:#B45309; padding:6px 14px; border-radius:99px; font-weight:700;">Pendiente de Revisión</span>
             </div>
 
             <div class="row"><span class="label">Cliente:</span><span class="val">{pedido.get('cliente')}</span></div>
@@ -653,7 +632,9 @@ def ver_pedido_cliente(slug, pedido_id):
             <div class="row"><span class="label">Plazo de Entrega:</span><span class="val">{pedido.get('tiempo_entrega')}</span></div>
             <div class="row"><span class="label">Notas:</span><span class="val">{pedido.get('notas') or 'Sin notas'}</span></div>
 
-            {acciones_cliente}
+            <div style="margin-top: 24px;">
+                <a href="/tienda/{slug}/cancelar-mi-pedido/{pedido_id}" onclick="return confirm('¿Deseas cancelar este pedido? Se eliminará del sistema y la pieza regresará al inventario.');" style="background:#EF4444; color:white; padding:12px 20px; border-radius:6px; text-decoration:none; font-weight:700; display:block; text-align:center;"><i class="fa-solid fa-ban"></i> Cancelar y Eliminar mi Pedido</a>
+            </div>
 
             <div style="margin-top: 24px; text-align: center;">
                 <a href="/tienda/{slug}" style="color: #1E3A8A; text-decoration: none; font-weight: 700; font-size: 0.9rem;"><i class="fa-solid fa-arrow-left"></i> Regresar al Catálogo</a>
@@ -673,8 +654,6 @@ def cancelar_mi_pedido(slug, pedido_id):
             prod_id = pedido.get('producto_id')
             talla = pedido.get('talla')
             
-            supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", pedido_id).execute()
-            
             if prod_id and talla:
                 res_prod = supabase.table("productos").select("*").eq("id", prod_id).execute()
                 if res_prod.data:
@@ -687,10 +666,13 @@ def cancelar_mi_pedido(slug, pedido_id):
                         supabase.table("productos").update({"stock_g": (p.get('stock_g') or 0) + 1}).eq("id", prod_id).execute()
                     elif talla == 'XG':
                         supabase.table("productos").update({"stock_xg": (p.get('stock_xg') or 0) + 1}).eq("id", prod_id).execute()
+            
+            # Borrar físicamente el pedido
+            supabase.table("pedidos").delete().eq("id", pedido_id).execute()
     except Exception as e:
         pass
         
-    return redirect(url_for("ver_pedido_cliente", slug=slug, pedido_id=pedido_id))
+    return redirect(url_for("catalogo_tienda", slug=slug))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -957,15 +939,8 @@ def ver_pedidos():
         p_estado = ped.get('estado') or 'Pendiente'
         talla_ped = ped.get('talla') or 'N/A'
         
-        if p_estado == 'Completado':
-            badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:700;">Completado</span>'
-            acc = f'<a href="/admin/pedido/cancelar/{p_id}" style="background:#FEE2E2; color:#991B1B; padding:6px; border-radius:4px; text-decoration:none;">Cancelar</a>'
-        elif p_estado == 'Cancelado':
-            badge = '<span style="background:#FEF2F2; color:#991B1B; padding:4px 10px; border-radius:99px; font-weight:700;">Cancelado</span>'
-            acc = f'<a href="/admin/pedido/completar/{p_id}" style="background:#ECFDF5; color:#047857; padding:6px; border-radius:4px; text-decoration:none;">Completar</a>'
-        else:
-            badge = '<span style="background:#FEF3C7; color:#B45309; padding:4px 10px; border-radius:99px; font-weight:700;">Pendiente</span>'
-            acc = f'<a href="/admin/pedido/completar/{p_id}" style="background:#047857; color:white; padding:6px; border-radius:4px; text-decoration:none; margin-right:4px;">Listo</a><a href="/admin/pedido/cancelar/{p_id}" style="background:#EF4444; color:white; padding:6px; border-radius:4px; text-decoration:none;">Cancelar</a>'
+        badge = '<span style="background:#FEF3C7; color:#B45309; padding:4px 10px; border-radius:99px; font-weight:700;">Pendiente</span>'
+        acc = f'<a href="/admin/pedido/completar/{p_id}" style="background:#047857; color:white; padding:6px; border-radius:4px; text-decoration:none; margin-right:4px;">Completar</a><a href="/admin/pedido/cancelar/{p_id}" style="background:#EF4444; color:white; padding:6px; border-radius:4px; text-decoration:none;">Cancelar</a>'
 
         rows += f"<tr><td><strong>#{p_id}</strong></td><td>{ped.get('cliente')}</td><td><b>{talla_ped}</b></td><td>{ped.get('metodo_pago')}</td><td>{ped.get('tiempo_entrega')}</td><td>{badge}</td><td>{acc}</td></tr>"
 
@@ -974,7 +949,7 @@ def ver_pedidos():
         <div class="table-box">
             <table>
                 <thead><tr><th>ID</th><th>Cliente</th><th>Talla</th><th>Pago</th><th>Entrega</th><th>Estatus</th><th>Acciones</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="7" style="text-align:center;">No hay encargos.</td></tr>'}</tbody>
+                <tbody>{rows if rows else '<tr><td colspan="7" style="text-align:center;">No hay encargos pendientes.</td></tr>'}</tbody>
             </table>
         </div>
     """
@@ -984,7 +959,8 @@ def ver_pedidos():
 @login_required
 def completar_pedido(id):
     try:
-        supabase.table("pedidos").update({"estado": "Completado"}).eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
+        # Opción 1: Al completar, se borra físicamente el pedido para limpiar el panel
+        supabase.table("pedidos").delete().eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
     except:
         pass
     return redirect(url_for("ver_pedidos"))
@@ -993,7 +969,28 @@ def completar_pedido(id):
 @login_required
 def cancelar_pedido(id):
     try:
-        supabase.table("pedidos").update({"estado": "Cancelado"}).eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
+        # Opción 1: Al cancelar, devolvemos el stock y borramos físicamente el pedido
+        res_p = supabase.table("pedidos").select("*").eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
+        if res_p.data:
+            pedido = res_p.data[0]
+            prod_id = pedido.get('producto_id')
+            talla = pedido.get('talla')
+            
+            if prod_id and talla:
+                res_prod = supabase.table("productos").select("*").eq("id", prod_id).execute()
+                if res_prod.data:
+                    p = res_prod.data[0]
+                    if talla == 'CH':
+                        supabase.table("productos").update({"stock_ch": (p.get('stock_ch') or 0) + 1}).eq("id", prod_id).execute()
+                    elif talla == 'M':
+                        supabase.table("productos").update({"stock_m": (p.get('stock_m') or 0) + 1}).eq("id", prod_id).execute()
+                    elif talla == 'G':
+                        supabase.table("productos").update({"stock_g": (p.get('stock_g') or 0) + 1}).eq("id", prod_id).execute()
+                    elif talla == 'XG':
+                        supabase.table("productos").update({"stock_xg": (p.get('stock_xg') or 0) + 1}).eq("id", prod_id).execute()
+            
+            # Borrar de la base de datos
+            supabase.table("pedidos").delete().eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
     except:
         pass
     return redirect(url_for("ver_pedidos"))
@@ -1021,8 +1018,8 @@ def ver_productos():
         badge_estilo = "background:#ECFDF5; color:#047857;"
         texto_alerta_stock = f"CH:{sch} | M:{sm} | G:{sg} | XG:{sxg}"
         if total_st <= 3:
-            badge_estilo = "background:#FEF2F2; color:#B91C1C; font-weight:700;"
-            texto_alerta_stock += ' <span style="background:#B91C1C; color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem;">¡BAJO!</span>'
+            badge_estilo = "background:#FEF2F2; color:#B91C1B; font-weight:700;"
+            texto_alerta_stock += ' <span style="background:#B91C1B; color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem;">¡BAJO!</span>'
 
         rows += f"""
         <tr>
