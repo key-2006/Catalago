@@ -188,6 +188,7 @@ def catalogo_tienda(slug):
         cards_html = ""
         for p in prods_de_cat:
             img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+            nombre_prod = p.get('nombre') or 'Prenda'
             
             sch = p.get('stock_ch') or 0
             sm = p.get('stock_m') or 0
@@ -203,15 +204,15 @@ def catalogo_tienda(slug):
             else:
                 badge_stock = f'<span class="badge-stock stock-in">Stock Total: {stock_total}</span>'
                 overlay_agotado = ''
-                btn_html = f'''<button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{p.get('nombre')}', '{p.get('precio')}', {sch}, {sm}, {sg}, {sxg})">
+                btn_html = f'''<button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{nombre_prod}', '{p.get('precio')}', {sch}, {sm}, {sg}, {sxg})">
                                 <i class="fa-solid fa-bag-shopping"></i> Encargar Prenda
                               </button>'''
                 img_class = ""
             
             cards_html += f"""
-            <div class="product-card">
+            <div class="product-card" data-nombre="{nombre_prod.lower()}" data-categoria="{c_nombre.lower()}">
                 <div class="img-wrapper">
-                    <img src="{img_url}" alt="{p.get('nombre')}" class="{img_class}">
+                    <img src="{img_url}" alt="{nombre_prod}" class="{img_class}">
                     {overlay_agotado}
                 </div>
                 <div class="card-content">
@@ -219,7 +220,7 @@ def catalogo_tienda(slug):
                         <span class="category-badge">{c_nombre}</span>
                         {badge_stock}
                     </div>
-                    <h3 class="product-title">{p.get('nombre')}</h3>
+                    <h3 class="product-title">{nombre_prod}</h3>
                     <div class="price-row" style="margin-bottom:12px;">
                         <span class="price">${p.get('precio')} MXN</span>
                     </div>
@@ -245,6 +246,7 @@ def catalogo_tienda(slug):
         cards_sin_cat = ""
         for p in prods_sin_cat:
             img_url = p.get('imagen_url') or p.get('imagen') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+            nombre_prod = p.get('nombre') or 'Prenda'
             sch = p.get('stock_ch') or 0
             sm = p.get('stock_m') or 0
             sg = p.get('stock_g') or 0
@@ -252,16 +254,16 @@ def catalogo_tienda(slug):
             stock_total = sch + sm + sg + sxg
             
             cards_sin_cat += f"""
-            <div class="product-card">
-                <div class="img-wrapper"><img src="{img_url}" alt="{p.get('nombre')}"></div>
+            <div class="product-card" data-nombre="{nombre_prod.lower()}" data-categoria="general">
+                <div class="img-wrapper"><img src="{img_url}" alt="{nombre_prod}"></div>
                 <div class="card-content">
                     <span class="category-badge">General</span>
-                    <h3 class="product-title">{p.get('nombre')}</h3>
+                    <h3 class="product-title">{nombre_prod}</h3>
                     <div class="price" style="margin-bottom:12px;">${p.get('precio')} MXN</div>
                     <div style="font-size: 0.75rem; color: #71717A; margin-bottom: 10px;">
                         CH: {sch} | M: {sm} | G: {sg} | XG: {sxg}
                     </div>
-                    <button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{p.get('nombre')}', '{p.get('precio')}', {sch}, {sm}, {sg}, {sxg})">
+                    <button class="btn-encargar" onclick="abrirModal('{p.get('id')}', '{nombre_prod}', '{p.get('precio')}', {sch}, {sm}, {sg}, {sxg})">
                         <i class="fa-solid fa-bag-shopping"></i> Encargar Prenda
                     </button>
                 </div>
@@ -291,7 +293,14 @@ def catalogo_tienda(slug):
             .logo { font-size: 1.2rem; font-weight: 800; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; letter-spacing: -0.5px; }
             .hero { background: #18181B; color: white; padding: 3rem 1.5rem; text-align: center; margin: 0 auto; }
             .hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
-            .hero p { color: #A1A1AA; font-size: 0.95rem; }
+            .hero p { color: #A1A1AA; font-size: 0.95rem; margin-bottom: 20px; }
+            
+            /* BARRA DE BÚSQUEDA */
+            .search-box-wrapper { max-width: 500px; margin: 0 auto; position: relative; }
+            .search-input { width: 100%; padding: 14px 20px 14px 45px; border-radius: 99px; border: 1px solid #3F3F46; background: #27272A; color: white; font-size: 0.95rem; outline: none; transition: all 0.2s; }
+            .search-input:focus { border-color: #93C5FD; box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2); background: #18181B; }
+            .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #A1A1AA; font-size: 1.1rem; }
+            
             .container-main { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem; }
             .category-section { margin-bottom: 3rem; }
             .category-section-title { font-size: 1.25rem; font-weight: 700; color: var(--text); margin-bottom: 1.2rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -312,6 +321,7 @@ def catalogo_tienda(slug):
             .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; }
             .modal-box { background: white; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
             .alert-toast { background: #065F46; color: white; padding: 16px; border-radius: 8px; max-width: 1200px; margin: 1.5rem auto 0; text-align: center; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+            #noResultadosMsg { display: none; text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 1.1rem; }
         </style>
     </head>
     <body>
@@ -326,11 +336,20 @@ def catalogo_tienda(slug):
         <section class="hero">
             <h1>Colección Exclusiva</h1>
             <p>Selección de prendas seleccionadas para TIENDA_NOMBRE.</p>
+            
+            <div class="search-box-wrapper">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="inputBuscador" class="search-input" placeholder="Buscar prendas por nombre o categoría..." onkeyup="filtrarProductos()">
+            </div>
         </section>
 
         ALERT_TOAST_PLACEHOLDER
 
         <div class="container-main">
+            <div id="noResultadosMsg">
+                <i class="fa-solid fa-box-open" style="font-size: 2.5rem; margin-bottom: 12px; display: block; color: #A1A1AA;"></i>
+                No encontramos prendas que coincidan con tu búsqueda.
+            </div>
             SECCIONES_HTML_PLACEHOLDER
         </div>
 
@@ -413,6 +432,39 @@ def catalogo_tienda(slug):
                     return;
                 }
                 window.location.href = '/tienda/TIENDA_SLUG/mi-pedido/' + ultimoId;
+            }
+            function filtrarProductos() {
+                const busqueda = document.getElementById('inputBuscador').value.toLowerCase().trim();
+                const cards = document.querySelectorAll('.product-card');
+                const secciones = document.querySelectorAll('.category-section');
+                let visiblestotal = 0;
+
+                cards.forEach(card => {
+                    const nombre = card.getAttribute('data-nombre') || '';
+                    const categoria = card.getAttribute('data-categoria') || '';
+                    if (nombre.includes(busqueda) || categoria.includes(busqueda)) {
+                        card.style.display = 'flex';
+                        visiblestotal++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                secciones.forEach(sec => {
+                    const tarjetasVisibles = sec.querySelectorAll('.product-card[style*="display: flex"]');
+                    if (tarjetasVisibles.length === 0 && busqueda !== '') {
+                        sec.style.display = 'none';
+                    } else {
+                        sec.style.display = 'block';
+                    }
+                });
+
+                const noResults = document.getElementById('noResultadosMsg');
+                if (visiblestotal === 0 && cards.length > 0) {
+                    noResults.style.display = 'block';
+                } else {
+                    noResults.style.display = 'none';
+                }
             }
         </script>
     </body>
@@ -1063,7 +1115,6 @@ def editar_producto(id):
 
     foto_actual = producto.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
     
-    # IMPORTANTE: Usamos comillas normales (sin f) para evitar que Python intente procesar las llaves de JavaScript
     content = """
         <h1>Editar Producto</h1>
         <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
