@@ -316,9 +316,13 @@ def catalogo_tienda(slug):
             .btn-encargar:hover { background: var(--primary-hover); }
             .btn-disabled { background: #E4E4E7; color: #A1A1AA; cursor: not-allowed; }
             .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 100; }
-            .modal-box { background: white; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+            .modal-box { background: white; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); max-height: 90vh; overflow-y: auto; }
             .alert-toast { background: #065F46; color: white; padding: 16px; border-radius: 8px; max-width: 1200px; margin: 1.5rem auto 0; text-align: center; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
             #noResultadosMsg { display: none; text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 1.1rem; }
+            
+            /* CAJA DE DATOS BANCARIOS */
+            .box-banco { display: none; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 0.85rem; color: #1E3A8A; }
+            .box-banco strong { display: block; margin-bottom: 4px; font-size: 0.9rem; }
         </style>
     </head>
     <body>
@@ -375,11 +379,20 @@ def catalogo_tienda(slug):
                     </select>
 
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Método de Pago</label>
-                    <select name="metodo_pago" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;" required>
+                    <select name="metodo_pago" id="selectMetodoPago" onchange="evaluarMetodoPago()" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;" required>
                         <option value="Efectivo al Entregar">Efectivo al Entregar</option>
                         <option value="Transferencia SPEI">Transferencia SPEI</option>
                         <option value="Tarjeta de Débito/Crédito">Tarjeta de Débito / Crédito</option>
                     </select>
+
+                    <!-- DESPLIEGUE DINÁMICO DE DATOS BANCARIOS -->
+                    <div class="box-banco" id="boxDatosBancarios">
+                        <strong><i class="fa-solid fa-building-columns"></i> Datos de Transferencia:</strong>
+                        <p style="margin-top:4px;"><b>Banco:</b> BBVA México</p>
+                        <p><b>CLABE:</b> <code style="background:#DBEAFE; padding:2px 6px; border-radius:4px;">1234 5678 9012 3456 78</code></p>
+                        <p><b>Titular:</b> Nombre de la Tienda</p>
+                        <p style="font-size:0.75rem; color:#1E40AF; margin-top:6px; font-style:italic;">* Al confirmar tu encargo, envíanos el comprobante por WhatsApp para apartar la prenda inmediatamente.</p>
+                    </div>
 
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Tiempo de Entrega Deseado</label>
                     <select name="tiempo_entrega" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;" required>
@@ -417,10 +430,22 @@ def catalogo_tienda(slug):
                 document.getElementById('optXG').innerText = "Extra Grande (XG) — " + sxg + " disp.";
                 
                 document.getElementById('selectTalla').value = "";
+                document.getElementById('selectMetodoPago').value = "Efectivo al Entregar";
+                evaluarMetodoPago();
+                
                 document.getElementById('modalEncargo').style.display = 'flex';
             }
             function cerrarModal() {
                 document.getElementById('modalEncargo').style.display = 'none';
+            }
+            function evaluarMetodoPago() {
+                const metodo = document.getElementById('selectMetodoPago').value;
+                const box = document.getElementById('boxDatosBancarios');
+                if (metodo === 'Transferencia SPEI') {
+                    box.style.display = 'block';
+                } else {
+                    box.style.display = 'none';
+                }
             }
             function consultarMiPedido() {
                 const ultimoId = localStorage.getItem('ultimo_pedido_id_TIENDA_SLUG');
@@ -996,8 +1021,8 @@ def ver_productos():
         badge_estilo = "background:#ECFDF5; color:#047857;"
         texto_alerta_stock = f"CH:{sch} | M:{sm} | G:{sg} | XG:{sxg}"
         if total_st <= 3:
-            badge_estilo = "background:#FEF2F2; color:#B91C1B; font-weight:700;"
-            texto_alerta_stock += ' <span style="background:#B91C1B; color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem;">¡BAJO!</span>'
+            badge_estilo = "background:#FEF2F2; color:#B91C1C; font-weight:700;"
+            texto_alerta_stock += ' <span style="background:#B91C1C; color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem;">¡BAJO!</span>'
 
         rows += f"""
         <tr>
