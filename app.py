@@ -109,6 +109,7 @@ def obtener_sidebar_admin(es_superadmin=False, pedidos_pendientes=0):
             <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
             <a href="/pedidos" class="nav-btn" style="display:flex; align-items:center;"><i class="fa-solid fa-receipt"></i> Encargos PEDIDOS_BADGE</a>
             <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
+            <a href="/categorias" class="nav-btn"><i class="fa-solid fa-tags"></i> Categorías</a>
             <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
             EXTRA_MENU_PLACEHOLDER
             <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
@@ -667,7 +668,6 @@ def cancelar_mi_pedido(slug, pedido_id):
                     elif talla == 'XG':
                         supabase.table("productos").update({"stock_xg": (p.get('stock_xg') or 0) + 1}).eq("id", prod_id).execute()
             
-            # Borrar físicamente el pedido
             supabase.table("pedidos").delete().eq("id", pedido_id).execute()
     except Exception as e:
         pass
@@ -863,9 +863,10 @@ def admin_index():
         {alerta_pendientes}
         {alerta_stock}
         <div class="header-title"><h1>Panel de {nombre_tienda}</h1></div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 600px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; max-width: 900px;">
             <a href="/pedidos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Encargos</h3></div></a>
             <a href="/productos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Productos</h3></div></a>
+            <a href="/categorias" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Categorías</h3></div></a>
         </div>
     """
     return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False), pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
@@ -959,7 +960,6 @@ def ver_pedidos():
 @login_required
 def completar_pedido(id):
     try:
-        # Opción 1: Al completar, se borra físicamente el pedido para limpiar el panel
         supabase.table("pedidos").delete().eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
     except:
         pass
@@ -969,7 +969,6 @@ def completar_pedido(id):
 @login_required
 def cancelar_pedido(id):
     try:
-        # Opción 1: Al cancelar, devolvemos el stock y borramos físicamente el pedido
         res_p = supabase.table("pedidos").select("*").eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
         if res_p.data:
             pedido = res_p.data[0]
@@ -989,18 +988,87 @@ def cancelar_pedido(id):
                     elif talla == 'XG':
                         supabase.table("productos").update({"stock_xg": (p.get('stock_xg') or 0) + 1}).eq("id", prod_id).execute()
             
-            # Borrar de la base de datos
             supabase.table("pedidos").delete().eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
     except:
         pass
     return redirect(url_for("ver_pedidos"))
+
+# --- MÓDULO DE CATEGORÍAS ---
+@app.route("/categorias")
+@login_required
+def ver_categorias():
+    tienda_id = session.get("tienda_id")
+    categorias = []
+    try:
+        res = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
+        categorias = res.data if res.data else []
+    except:
+        pass
+
+    rows = ""
+    for cat in categorias:
+        c_id = cat.get('id')
+        c_nombre = cat.get('nombre')
+        rows += f"<tr><td><strong>#{c_id}</strong></td><td>{c_nombre}</td><td><a href='/categorias/eliminar/{c_id}' onclick=\"return confirm('¿Deseas eliminar esta categoría?');\" style='background:#FEF2F2; color:#B91C1B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a></td></tr>"
+
+    content = f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h1>Gestión de Categorías</h1>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 24px; align-items: start;">
+            <div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);">
+                <h3 style="margin-bottom:16px; font-size:1.1rem;">Nueva Categoría</h3>
+                <form action="/categorias/nueva" method="POST">
+                    <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Nombre de Categoría</label>
+                    <input type="text" name="nombre" placeholder="Ej. Vestidos, Blusas..." style="width:100%; padding:10px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px;" required>
+                    <button type="submit" style="background:var(--primary); color:white; padding:10px 16px; border:none; border-radius:6px; font-weight:700; width:100%; cursor:pointer;">Crear Categoría</button>
+                </form>
+            </div>
+            <div class="table-box">
+                <table>
+                    <thead><tr><th>ID</th><th>Nombre</th><th>Acciones</th></tr></thead>
+                    <tbody>{rows if rows else '<tr><td colspan="3" style="text-align:center;">No hay categorías creadas.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>
+    """
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
+
+@app.route("/categorias/nueva", methods=["POST"])
+@login_required
+def nueva_categoria():
+    tienda_id = session.get("tienda_id")
+    nombre = request.form.get("nombre")
+    try:
+        supabase.table("categorias").insert({
+            "tienda_id": tienda_id,
+            "nombre": nombre
+        }).execute()
+    except:
+        pass
+    return redirect(url_for("ver_categorias"))
+
+@app.route("/categorias/eliminar/<int:id>")
+@login_required
+def eliminar_categoria(id):
+    try:
+        supabase.table("categorias").delete().eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
+    except:
+        pass
+    return redirect(url_for("ver_categorias"))
 
 @app.route("/productos")
 @login_required
 def ver_productos():
     tienda_id = session.get("tienda_id")
     productos = []
+    categorias_dict = {}
     try:
+        res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
+        if res_cat.data:
+            for c in res_cat.data:
+                categorias_dict[c.get('id')] = c.get('nombre')
+
         res = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
         productos = res.data if res.data else []
     except:
@@ -1015,6 +1083,8 @@ def ver_productos():
         sxg = p.get('stock_xg', 0)
         total_st = sch + sm + sg + sxg
         
+        cat_nombre = categorias_dict.get(p.get('categoria_id'), 'General')
+        
         badge_estilo = "background:#ECFDF5; color:#047857;"
         texto_alerta_stock = f"CH:{sch} | M:{sm} | G:{sg} | XG:{sxg}"
         if total_st <= 3:
@@ -1027,10 +1097,11 @@ def ver_productos():
             <td><img src='{img}' style='width:40px;height:40px;object-fit:cover;border-radius:4px;'></td>
             <td>{p.get('nombre')}</td>
             <td><b>${p.get('precio')}</b></td>
+            <td><span style="background:#EFF6FF; color:#1E3A8A; padding:4px 8px; border-radius:4px; font-weight:600; font-size:0.8rem;">{cat_nombre}</span></td>
             <td><span style="padding:4px 8px; border-radius:4px; {badge_estilo}">{texto_alerta_stock}</span></td>
             <td>
                 <a href='/admin/producto/editar/{p.get('id')}' style='background:#F4F4F5; color:#18181B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;'><i class='fa-solid fa-pen'></i> Editar</a>
-                <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
+                <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
             </td>
         </tr>
         """
@@ -1042,8 +1113,8 @@ def ver_productos():
         </div>
         <div class="table-box">
             <table>
-                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Stock por Talla</th><th>Acciones</th></tr></thead>
-                <tbody>{rows if rows else '<tr><td colspan="6" style="text-align:center;">No hay productos.</td></tr>'}</tbody>
+                <thead><tr><th>ID</th><th>Foto</th><th>Prenda</th><th>Precio</th><th>Categoría</th><th>Stock por Talla</th><th>Acciones</th></tr></thead>
+                <tbody>{rows if rows else '<tr><td colspan="7" style="text-align:center;">No hay productos.</td></tr>'}</tbody>
             </table>
         </div>
     """
@@ -1053,11 +1124,19 @@ def ver_productos():
 @login_required
 def nuevo_producto():
     tienda_id = session.get("tienda_id")
+    categorias = []
+    try:
+        res_c = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
+        categorias = res_c.data if res_c.data else []
+    except:
+        pass
+
     if request.method == "POST":
         try:
             supabase.table("productos").insert({
                 "tienda_id": tienda_id,
                 "nombre": request.form.get("nombre"),
+                "categoria_id": int(request.form.get("categoria_id") or 0) if request.form.get("categoria_id") else None,
                 "precio": float(request.form.get("precio") or 0),
                 "stock_ch": int(request.form.get("stock_ch") or 0),
                 "stock_m": int(request.form.get("stock_m") or 0),
@@ -1069,11 +1148,20 @@ def nuevo_producto():
         except Exception as e:
             return f"Error: {e}"
 
-    content = """
+    options_cat = "".join([f"<option value='{c.get('id')}'>{c.get('nombre')}</option>" for c in categorias])
+
+    content = f"""
         <h1>Nuevo Producto con Tallas</h1>
         <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
             <input type="hidden" name="imagen_recortada" id="imagen_recortada" required>
             <label>Nombre</label><input type="text" name="nombre" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            
+            <label>Categoría</label>
+            <select name="categoria_id" style="width:100%; padding:8px; margin:6px 0 16px; background:white; border:1px solid var(--border); border-radius:6px;">
+                <option value="">Sin Categoría</option>
+                {options_cat}
+            </select>
+
             <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
@@ -1100,27 +1188,27 @@ def nuevo_producto():
 
         <script>
             let cropper = null;
-            document.getElementById('inputFoto').addEventListener('change', function(e) {
+            document.getElementById('inputFoto').addEventListener('change', function(e) {{
                 const file = e.target.files[0];
-                if (file) {
+                if (file) {{
                     const reader = new FileReader();
-                    reader.onload = function(ev) {
+                    reader.onload = function(ev) {{
                         document.getElementById('imagenParaRecortar').src = ev.target.result;
                         document.getElementById('editorContainer').style.display = 'block';
                         if (cropper) cropper.destroy();
-                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
-                    };
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
+                    }};
                     reader.readAsDataURL(file);
-                }
-            });
-            function confirmarRecorte() {
-                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+                }}
+            }});
+            function confirmarRecorte() {{
+                const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
                 const b64 = canvas.toDataURL('image/jpeg');
                 document.getElementById('imagen_recortada').value = b64;
                 document.getElementById('imgResultadoPrev').src = b64;
                 document.getElementById('editorContainer').style.display = 'none';
                 document.getElementById('vistaPreviaBox').style.display = 'block';
-            }
+            }}
         </script>
     """
     return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
@@ -1134,6 +1222,9 @@ def editar_producto(id):
         if not res_prod.data:
             return redirect(url_for("ver_productos"))
         producto = res_prod.data[0]
+
+        res_c = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
+        categorias = res_c.data if res_c.data else []
     except:
         return redirect(url_for("ver_productos"))
 
@@ -1143,6 +1234,7 @@ def editar_producto(id):
         try:
             supabase.table("productos").update({
                 "nombre": request.form.get("nombre"),
+                "categoria_id": int(request.form.get("categoria_id") or 0) if request.form.get("categoria_id") else None,
                 "precio": float(request.form.get("precio") or 0),
                 "stock_ch": int(request.form.get("stock_ch") or 0),
                 "stock_m": int(request.form.get("stock_m") or 0),
@@ -1155,12 +1247,25 @@ def editar_producto(id):
             return f"Error al actualizar: {e}"
 
     foto_actual = producto.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+    prod_cat_id = producto.get('categoria_id')
+
+    options_cat = ""
+    for c in categorias:
+        selected = "selected" if c.get('id') == prod_cat_id else ""
+        options_cat += f"<option value='{c.get('id')}' {selected}>{c.get('nombre')}</option>"
     
     content = """
         <h1>Editar Producto</h1>
         <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
             <input type="hidden" name="imagen_recortada" id="imagen_recortada">
             <label>Nombre</label><input type="text" name="nombre" value="NOMBRE_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            
+            <label>Categoría</label>
+            <select name="categoria_id" style="width:100%; padding:8px; margin:6px 0 16px; background:white; border:1px solid var(--border); border-radius:6px;">
+                <option value="">Sin Categoría</option>
+                OPTIONS_CAT_PLACEHOLDER
+            </select>
+
             <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="PRECIO_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
@@ -1188,31 +1293,32 @@ def editar_producto(id):
 
         <script>
             let cropper = null;
-            document.getElementById('inputFoto').addEventListener('change', function(e) {
+            document.getElementById('inputFoto').addEventListener('change', function(e) {{
                 const file = e.target.files[0];
-                if (file) {
+                if (file) {{
                     const reader = new FileReader();
-                    reader.onload = function(ev) {
+                    reader.onload = function(ev) {{
                         document.getElementById('imagenParaRecortar').src = ev.target.result;
                         document.getElementById('editorContainer').style.display = 'block';
                         if (cropper) cropper.destroy();
-                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
-                    };
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
+                    }};
                     reader.readAsDataURL(file);
                 }
-            });
-            function confirmarRecorte() {
-                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+            }});
+            function confirmarRecorte() {{
+                const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
                 const b64 = canvas.toDataURL('image/jpeg');
                 document.getElementById('imagen_recortada').value = b64;
                 document.getElementById('imgResultadoPrev').src = b64;
                 document.getElementById('editorContainer').style.display = 'none';
                 document.getElementById('vistaPreviaBox').style.display = 'block';
-            }
+            }}
         </script>
     """
     
     content_final = content.replace("NOMBRE_PLACEHOLDER", str(producto.get('nombre') or '')) \
+                           .replace("OPTIONS_CAT_PLACEHOLDER", options_cat) \
                            .replace("PRECIO_PLACEHOLDER", str(producto.get('precio') or 0)) \
                            .replace("SCH_PLACEHOLDER", str(producto.get('stock_ch') or 0)) \
                            .replace("SM_PLACEHOLDER", str(producto.get('stock_m') or 0)) \
