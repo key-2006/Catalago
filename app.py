@@ -135,15 +135,23 @@ def login():
         if not supabase:
             return "Error de conexión con Supabase", 500
             
+        # Busca por slug o por nombre
         res = supabase.table("tiendas").select("*").eq("slug", slug_ingresado).execute()
+        if not res.data:
+            res = supabase.table("tiendas").select("*").eq("nombre", slug_ingresado).execute()
+
         if res.data:
             tienda = res.data[0]
-            if password == "admin123" or password == tienda.get("password"):
+            db_pass = tienda.get("password") or tienda.get("contrasena")
+            
+            # Acepta admin123 o la contraseña de la base de datos
+            if password == "admin123" or (db_pass and password == db_pass):
                 session["logged_in"] = True
                 session["tienda_id"] = tienda.get("id")
                 session["tienda_slug"] = tienda.get("slug")
                 session["tienda_nombre"] = tienda.get("nombre")
                 return redirect(url_for("admin_dashboard"))
+                
         error = "Credenciales incorrectas o tienda no encontrada."
         
     login_html = """
