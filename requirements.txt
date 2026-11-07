@@ -2,3 +2,5 @@ Flask
 supabase
 python-dotenv
 gunicorn
+Flask==3.0.2
+supabase==2.3.0
