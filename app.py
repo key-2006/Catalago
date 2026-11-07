@@ -1,8 +1,6 @@
 from flask import Flask, request, render_template_string, redirect, url_for, session, Response
 from functools import wraps
 from supabase import create_client, Client
-from datetime import datetime, timezone, timedelta
-import base64
 import csv
 import io
 
@@ -56,7 +54,7 @@ PLANTILLA_SUSPENDIDO = """
 """
 
 def obtener_sidebar_admin():
-    plantilla_base = """
+    return """
     <!DOCTYPE html>
     <html lang="es">
     <head>
@@ -65,9 +63,7 @@ def obtener_sidebar_admin():
         <title>Panel de Control - Catálogo Digital</title>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <!-- Cropper.js CSS -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
-        <!-- Cropper.js JS -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
         <style>
             :root { --sidebar-bg: #18181B; --sidebar-hover: #27272A; --primary: #1E3A8A; --primary-hover: #1D4ED8; --bg: #F4F4F5; --surface: #FFFFFF; --text-main: #18181B; --text-muted: #71717A; --border: #E4E4E7; --danger: #EF4444; --radius: 8px; }
@@ -124,7 +120,6 @@ def obtener_sidebar_admin():
     </body>
     </html>
     """
-    return plantilla_base
 
 @app.route("/")
 def inicio_raiz():
@@ -303,7 +298,8 @@ def nuevo_producto():
     res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
     opts_cat = "".join([f"<option value='{c['id']}'>{c['nombre']}</option>" for c in res_cat.data]) if res_cat.data else ""
 
-    contenido = f"""
+    base_sidebar = obtener_sidebar_admin()
+    formulario_html = """
     <div class="header-title">
         <h1>Agregar Nuevo Artículo</h1>
     </div>
@@ -311,7 +307,7 @@ def nuevo_producto():
         <form method="POST">
             <div class="form-group"><label>Nombre del Producto</label><input type="text" name="nombre" required></div>
             <div class="form-group"><label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required></div>
-            <div class="form-group"><label>Categoría</label><select name="categoria_id"><option value="">Selecciona...</option>{opts_cat}</select></div>
+            <div class="form-group"><label>Categoría</label><select name="categoria_id"><option value="">Selecciona...</option>OPTS_CAT_PLACEHOLDER</select></div>
             
             <div class="form-group">
                 <label>Foto del Producto (Selecciona y recorta)</label>
@@ -360,7 +356,8 @@ def nuevo_producto():
         }
     </script>
     """
-    return render_template_string(obtener_sidebar_admin().replace("CONTENT_PLACEHOLDER", contenido))
+    contenido = formulario_html.replace("OPTS_CAT_PLACEHOLDER", opts_cat)
+    return render_template_string(base_sidebar.replace("CONTENT_PLACEHOLDER", contenido))
 
 @app.route("/productos/editar/<int:id>", methods=["GET", "POST"])
 @login_required
@@ -402,33 +399,34 @@ def editar_producto(id):
         selected = "selected" if c['id'] == prod.get('categoria_id') else ""
         opts_cat += f"<option value='{c['id']}' {selected}>{c['nombre']}</option>"
 
-    contenido = f"""
+    base_sidebar = obtener_sidebar_admin()
+    form_editar = """
     <div class="header-title">
         <h1>Editar Producto</h1>
     </div>
     <div class="table-box" style="max-width: 650px;">
         <form method="POST">
-            <div class="form-group"><label>Nombre del Producto</label><input type="text" name="nombre" value="{prod.get('nombre','')}" required></div>
-            <div class="form-group"><label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="{prod.get('precio','')}" required></div>
-            <div class="form-group"><label>Categoría</label><select name="categoria_id"><option value="">Selecciona...</option>{opts_cat}</select></div>
+            <div class="form-group"><label>Nombre del Producto</label><input type="text" name="nombre" value="PROD_NOMBRE" required></div>
+            <div class="form-group"><label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="PROD_PRECIO" required></div>
+            <div class="form-group"><label>Categoría</label><select name="categoria_id"><option value="">Selecciona...</option>OPTS_CAT_PLACEHOLDER</select></div>
             
             <div class="form-group">
                 <label>Foto Actual</label>
-                <img src="{prod.get('imagen_url','')}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; display: block; margin-bottom: 8px;">
+                <img src="PROD_IMAGEN" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; display: block; margin-bottom: 8px;">
                 <label>Cambiar / Recortar Nueva Foto</label>
                 <input type="file" id="inputFoto" accept="image/*" onchange="iniciarCropper(event)" style="margin-bottom:10px;">
                 <div style="max-width: 300px; margin-bottom: 10px;">
                     <img id="imagenPrevia" style="max-width: 100%; display: none;">
                 </div>
                 <button type="button" id="btnCortar" style="display:none;" class="btn-primary" onclick="recortarImagen()"><i class="fa-solid fa-crop"></i> Recortar Imagen</button>
-                <input type="hidden" name="imagen_url" id="imagenRecortadaURL" value="{prod.get('imagen_url','')}">
+                <input type="hidden" name="imagen_url" id="imagenRecortadaURL" value="PROD_IMAGEN">
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
-                <div class="form-group"><label>Stock CH</label><input type="number" name="stock_ch" value="{prod.get('stock_ch', 0)}"></div>
-                <div class="form-group"><label>Stock M</label><input type="number" name="stock_m" value="{prod.get('stock_m', 0)}"></div>
-                <div class="form-group"><label>Stock G</label><input type="number" name="stock_g" value="{prod.get('stock_g', 0)}"></div>
-                <div class="form-group"><label>Stock XG</label><input type="number" name="stock_xg" value="{prod.get('stock_xg', 0)}"></div>
+                <div class="form-group"><label>Stock CH</label><input type="number" name="stock_ch" value="STOCK_CH"></div>
+                <div class="form-group"><label>Stock M</label><input type="number" name="stock_m" value="STOCK_M"></div>
+                <div class="form-group"><label>Stock G</label><input type="number" name="stock_g" value="STOCK_G"></div>
+                <div class="form-group"><label>Stock XG</label><input type="number" name="stock_xg" value="STOCK_XG"></div>
             </div>
             <button type="submit" class="btn-primary" style="margin-top:10px;">Actualizar Producto</button>
         </form>
@@ -460,7 +458,17 @@ def editar_producto(id):
         }
     </script>
     """
-    return render_template_string(obtener_sidebar_admin().replace("CONTENT_PLACEHOLDER", contenido))
+    
+    contenido = form_editar.replace("PROD_NOMBRE", str(prod.get('nombre', '')))\
+                          .replace("PROD_PRECIO", str(prod.get('precio', '')))\
+                          .replace("PROD_IMAGEN", str(prod.get('imagen_url', '')))\
+                          .replace("STOCK_CH", str(prod.get('stock_ch', 0)))\
+                          .replace("STOCK_M", str(prod.get('stock_m', 0)))\
+                          .replace("STOCK_G", str(prod.get('stock_g', 0)))\
+                          .replace("STOCK_XG", str(prod.get('stock_xg', 0)))\
+                          .replace("OPTS_CAT_PLACEHOLDER", opts_cat)
+                          
+    return render_template_string(base_sidebar.replace("CONTENT_PLACEHOLDER", contenido))
 
 @app.route("/productos/eliminar/<int:id>")
 @login_required
@@ -482,6 +490,7 @@ def categorias():
     res = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
     filas = "".join([f"<tr><td><strong>{c['nombre']}</strong></td><td><a href='/categorias/eliminar/{c['id']}' class='btn-danger'>Eliminar</a></td></tr>" for c in (res.data or [])])
 
+    base_sidebar = obtener_sidebar_admin()
     contenido = f"""
     <div class="header-title">
         <h1>Gestión de Categorías</h1>
@@ -502,7 +511,7 @@ def categorias():
         </div>
     </div>
     """
-    return render_template_string(obtener_sidebar_admin().replace("CONTENT_PLACEHOLDER", contenido))
+    return render_template_string(base_sidebar.replace("CONTENT_PLACEHOLDER", contenido))
 
 @app.route("/categorias/eliminar/<int:id>")
 @login_required
@@ -535,6 +544,7 @@ def listar_pedidos():
         </tr>
         """
 
+    base_sidebar = obtener_sidebar_admin()
     contenido = f"""
     <div class="header-title">
         <h1>Encargos / Ventas de Clientes</h1>
@@ -559,7 +569,7 @@ def listar_pedidos():
         </table>
     </div>
     """
-    return render_template_string(obtener_sidebar_admin().replace("CONTENT_PLACEHOLDER", contenido))
+    return render_template_string(base_sidebar.replace("CONTENT_PLACEHOLDER", contenido))
 
 @app.route("/pedidos/eliminar/<int:id>")
 @login_required
@@ -571,8 +581,8 @@ def eliminar_pedido(id):
 @app.route("/admin/reportes")
 @login_required
 def admin_reportes():
-    tienda_id = session.get("tienda_id")
-    contenido = f"""
+    base_sidebar = obtener_sidebar_admin()
+    contenido = """
     <div class="header-title">
         <h1>Reportes e Inventario</h1>
         <p style="color: var(--text-muted);">Descarga el reporte detallado de stock y ventas de tu tienda.</p>
@@ -590,7 +600,7 @@ def admin_reportes():
         </div>
     </div>
     """
-    return render_template_string(obtener_sidebar_admin().replace("CONTENT_PLACEHOLDER", contenido))
+    return render_template_string(base_sidebar.replace("CONTENT_PLACEHOLDER", contenido))
 
 @app.route("/admin/exportar/inventario")
 @login_required
