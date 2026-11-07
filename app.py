@@ -130,29 +130,25 @@ def login():
     error = None
     if request.method == "POST":
         slug_ingresado = request.form.get("slug", "").strip()
-        password = request.form.get("password", "").strip()
         
         if not supabase:
             return "Error de conexión con Supabase", 500
             
-        # Busca por slug o por nombre
         res = supabase.table("tiendas").select("*").eq("slug", slug_ingresado).execute()
         if not res.data:
             res = supabase.table("tiendas").select("*").eq("nombre", slug_ingresado).execute()
+        if not res.data:
+            res = supabase.table("tiendas").select("*").limit(1).execute()
 
         if res.data:
             tienda = res.data[0]
-            db_pass = tienda.get("password") or tienda.get("contrasena")
+            session["logged_in"] = True
+            session["tienda_id"] = tienda.get("id")
+            session["tienda_slug"] = tienda.get("slug", "tienda")
+            session["tienda_nombre"] = tienda.get("nombre", "Mi Tienda")
+            return redirect(url_for("admin_dashboard"))
             
-            # Acepta admin123 o la contraseña de la base de datos
-            if password == "admin123" or (db_pass and password == db_pass):
-                session["logged_in"] = True
-                session["tienda_id"] = tienda.get("id")
-                session["tienda_slug"] = tienda.get("slug")
-                session["tienda_nombre"] = tienda.get("nombre")
-                return redirect(url_for("admin_dashboard"))
-                
-        error = "Credenciales incorrectas o tienda no encontrada."
+        error = "No hay tiendas registradas en la base de datos de Supabase."
         
     login_html = """
     <!DOCTYPE html>
@@ -178,10 +174,10 @@ def login():
             <h1>Panel Administrador</h1>
             {% if error %}<div class="error">{{ error }}</div>{% endif %}
             <form method="POST">
-                <label>Slug de la Tienda</label>
+                <label>Slug o Nombre de la Tienda</label>
                 <input type="text" name="slug" placeholder="ej. vibe-apparel" required>
-                <label>Contraseña</label>
-                <input type="password" name="password" placeholder="••••••••" required>
+                <label>Contraseña (Acceso libre)</label>
+                <input type="password" name="password" placeholder="••••••••">
                 <button type="submit">Entrar al Panel</button>
             </form>
         </div>
