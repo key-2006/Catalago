@@ -572,12 +572,6 @@ def eliminar_pedido(id):
 @login_required
 def admin_reportes():
     tienda_id = session.get("tienda_id")
-    res_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
-    productos = res_prod.data if res_prod.data else []
-
-    res_pedidos = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).execute()
-    pedidos = res_pedidos.data if res_pedidos.data else []
-
     contenido = f"""
     <div class="header-title">
         <h1>Reportes e Inventario</h1>
@@ -663,6 +657,14 @@ def catalogo_tienda(slug):
         res_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
         productos = res_prod.data if res_prod.data else []
 
+        msg_exito = request.args.get("encargo_exito")
+        pedido_id_creado = request.args.get("pedido_id")
+        pedido_reciente = None
+        if pedido_id_creado:
+            res_p_rec = supabase.table("pedidos").select("*").eq("id", pedido_id_creado).execute()
+            if res_p_rec.data:
+                pedido_reciente = res_p_rec.data[0]
+
     except Exception as e:
         return f"Error al cargar: {e}", 500
 
@@ -733,6 +735,24 @@ def catalogo_tienda(slug):
         </div>
         """
 
+    alerta_html = ""
+    if msg_exito and pedido_reciente:
+        p_id = pedido_reciente.get('id')
+        script_guardar_local = f"""
+        <script>
+            localStorage.setItem('ultimo_pedido_id_{slug}', '{p_id}');
+        </script>
+        """
+        alerta_html = f"""
+        {script_guardar_local}
+        <div style="max-width: 1200px; margin: 1.5rem auto 0; padding: 0 1.5rem;">
+            <div style="background: #065F46; color: white; padding: 16px; border-radius: 8px; text-align: center; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+                <div><i class="fa-solid fa-circle-check"></i> ¡Encargo realizado con éxito! Tu folio es #{p_id}.</div>
+                <a href="/tienda/{slug}/mi-pedido/{p_id}" style="background: white; color: #065F46; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 0.85rem;">Ver / Cancelar mi Pedido</a>
+            </div>
+        </div>
+        """
+
     plantilla_catalogo = """
     <!DOCTYPE html>
     <html lang="es">
@@ -777,7 +797,10 @@ def catalogo_tienda(slug):
     <body>
         <nav>
             <a href="/tienda/{{ tienda.slug }}" class="logo"><i class="fa-solid fa-gem"></i> {{ tienda.nombre }}</a>
-            <a href="/login" style="color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="fa-solid fa-lock"></i> Acceso Admin</a>
+            <div style="display: flex; gap: 16px; align-items: center;">
+                <a href="javascript:void(0);" onclick="consultarMiPedido()" style="color: var(--primary); text-decoration: none; font-weight: 700; font-size: 0.9rem; background: #EFF6FF; padding: 6px 12px; border-radius: 6px;"><i class="fa-solid fa-receipt"></i> Consultar / Cancelar mi Pedido</a>
+                <a href="/login" style="color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem;"><i class="fa-solid fa-lock"></i> Acceso Admin</a>
+            </div>
         </nav>
         <section class="hero">
             <h1>Colección Exclusiva</h1>
@@ -787,6 +810,9 @@ def catalogo_tienda(slug):
                 <input type="text" id="inputBuscador" class="search-input" placeholder="Buscar productos..." onkeyup="filtrarProductos()">
             </div>
         </section>
+        
+        {{ alerta_html | safe }}
+
         <div class="container-main">
             {{ secciones_html | safe }}
         </div>
@@ -863,6 +889,14 @@ def catalogo_tienda(slug):
                 const metodo = document.getElementById('selectMetodoPago').value;
                 document.getElementById('boxDatosBancarios').style.display = metodo === 'Transferencia SPEI' ? 'block' : 'none';
             }
+            function consultarMiPedido() {
+                const ultimoId = localStorage.getItem('ultimo_pedido_id_{{ tienda.slug }}');
+                if (!ultimoId) {
+                    alert('No encontramos ningún pedido reciente registrado desde este dispositivo.');
+                    return;
+                }
+                window.location.href = '/tienda/{{ tienda.slug }}/mi-pedido/' + ultimoId;
+            }
             function filtrarProductos() {
                 const busqueda = document.getElementById('inputBuscador').value.toLowerCase().trim();
                 document.querySelectorAll('.product-card').forEach(card => {
@@ -874,7 +908,7 @@ def catalogo_tienda(slug):
     </body>
     </html>
     """
-    return render_template_string(plantilla_catalogo, tienda=tienda, secciones_html=secciones_html)
+    return render_template_string(plantilla_catalogo, tienda=tienda, secciones_html=secciones_html, alerta_html=alerta_html)
 
 @app.route("/hacer-encargo", methods=["POST"])
 def hacer_encargo():
@@ -890,7 +924,7 @@ def hacer_encargo():
     metodo_pago = request.form.get("metodo_pago")
 
     try:
-        supabase.table("pedidos").insert({
+        res = supabase.table("pedidos").insert({
             "tienda_id": int(tienda_id),
             "producto_id": int(producto_id),
             "cliente": nombre_cliente,
@@ -899,10 +933,77 @@ def hacer_encargo():
             "metodo_pago": metodo_pago,
             "estado": "Pendiente"
         }).execute()
+        
+        pedido_id = res.data[0]['id'] if res.data else ""
+        return redirect(url_for('catalogo_tienda', slug=slug, encargo_exito="1", pedido_id=pedido_id))
     except Exception as e:
-        pass
+        return redirect(url_for('catalogo_tienda', slug=slug))
 
-    return redirect(url_for('catalogo_tienda', slug=slug, encargo_exito="1"))
+@app.route("/tienda/<slug>/mi-pedido/<int:pedido_id>")
+def ver_mi_pedido(slug, pedido_id):
+    if not supabase:
+        return "Error de configuración", 500
+
+    try:
+        res_t = supabase.table("tiendas").select("*").eq("slug", slug).execute()
+        if not res_t.data:
+            return "Tienda no encontrada", 404
+        tienda = res_t.data[0]
+
+        res_p = supabase.table("pedidos").select("*, productos(nombre, precio, imagen_url)").eq("id", pedido_id).execute()
+        if not res_p.data:
+            return "<div style='padding:40px; font-family:sans-serif;'><h2>Pedido no encontrado o ya fue cancelado.</h2><br><a href='/tienda/" + slug + "'>Regresar al catálogo</a></div>", 404
+        
+        pedido = res_p.data[0]
+    except Exception as e:
+        return f"Error: {e}", 500
+
+    plantilla_pedido = """
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <title>Mi Pedido - {{ tienda.nombre }}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+            body { background: #FAFAFA; color: #18181B; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+            .card { background: white; border: 1px solid #E4E4E7; padding: 30px; border-radius: 12px; width: 100%; max-width: 480px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+            h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 20px; color: #1E3A8A; display: flex; align-items: center; gap: 8px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 0.95rem; border-bottom: 1px solid #F4F4F5; padding-bottom: 8px; }
+            .btn-cancelar { background: #FEE2E2; color: #DC2626; border: none; padding: 12px; width: 100%; border-radius: 6px; font-weight: 700; cursor: pointer; margin-top: 20px; text-decoration: none; display: block; text-align: center; }
+            .btn-cancelar:hover { background: #FDC2C2; }
+            .btn-volver { background: #F4F4F5; color: #18181B; border: none; padding: 10px; width: 100%; border-radius: 6px; font-weight: 700; cursor: pointer; margin-top: 10px; text-decoration: none; display: block; text-align: center; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1><i class="fa-solid fa-receipt"></i> Detalle de tu Encargo</h1>
+            <div class="info-row"><span>Folio:</span><strong>#{{ pedido.id }}</strong></div>
+            <div class="info-row"><span>Cliente:</span><strong>{{ pedido.cliente }}</strong></div>
+            <div class="info-row"><span>Teléfono:</span><strong>{{ pedido.telefono }}</strong></div>
+            <div class="info-row"><span>Artículo:</span><strong>{{ pedido.productos.nombre if pedido.productos else 'N/A' }}</strong></div>
+            <div class="info-row"><span>Talla:</span><strong>{{ pedido.talla }}</strong></div>
+            <div class="info-row"><span>Método de Pago:</span><strong>{{ pedido.metodo_pago }}</strong></div>
+            <div class="info-row"><span>Estado Actual:</span><strong style="color: #D97706;">{{ pedido.estado }}</strong></div>
+
+            <a href="/tienda/{{ tienda.slug }}/cancelar-pedido/{{ pedido.id }}" class="btn-cancelar" onclick="return confirm('¿Estás seguro de que deseas cancelar este pedido?');">Cancelar mi Pedido</a>
+            <a href="/tienda/{{ tienda.slug }}" class="btn-volver">Volver al Catálogo</a>
+        </div>
+    </body>
+    </html>
+    """
+    return render_template_string(plantilla_pedido, tienda=tienda, pedido=pedido)
+
+@app.route("/tienda/<slug>/cancelar-pedido/<int:pedido_id>")
+def cancelar_pedido(slug, pedido_id):
+    if supabase:
+        try:
+            supabase.table("pedidos").delete().eq("id", pedido_id).execute()
+        except Exception:
+            pass
+    return redirect(url_for('catalogo_tienda', slug=slug))
 
 if __name__ == "__main__":
     app.debug = True
