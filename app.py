@@ -1301,7 +1301,8 @@ def nuevo_producto():
 
     if request.method == "POST":
         try:
-            cat_id = int(request.form.get("categoria_id") or 0) if request.form.get("categoria_id") else None
+            cat_id_raw = request.form.get("categoria_id")
+            cat_id = int(cat_id_raw) if cat_id_raw and cat_id_raw != "" else None
             
             es_acc = False
             for c in categorias:
@@ -1310,7 +1311,8 @@ def nuevo_producto():
                     break
 
             if es_acc:
-                stock_val = int(request.form.get("stock_total") or 0)
+                stock_val_raw = request.form.get("stock_total")
+                stock_val = int(stock_val_raw) if stock_val_raw and stock_val_raw != "" else 0
                 s_ch, s_m, s_g, s_xg = stock_val, 0, 0, 0
             else:
                 s_ch = int(request.form.get("stock_ch") or 0)
@@ -1318,11 +1320,14 @@ def nuevo_producto():
                 s_g = int(request.form.get("stock_g") or 0)
                 s_xg = int(request.form.get("stock_xg") or 0)
 
+            precio_raw = request.form.get("precio")
+            precio_val = float(precio_raw) if precio_raw and precio_raw != "" else 0.0
+
             supabase.table("productos").insert({
                 "tienda_id": tienda_id,
                 "nombre": request.form.get("nombre"),
                 "categoria_id": cat_id,
-                "precio": float(request.form.get("precio") or 0),
+                "precio": precio_val,
                 "stock_ch": s_ch,
                 "stock_m": s_m,
                 "stock_g": s_g,
@@ -1331,7 +1336,7 @@ def nuevo_producto():
             }).execute()
             return redirect(url_for("ver_productos"))
         except Exception as e:
-            return f"Error: {e}"
+            return f"<div style='padding:30px; font-family:sans-serif;'><h3>Error al crear el producto:</h3><p>{e}</p><br><a href='/productos'>Regresar</a></div>"
 
     options_cat = ""
     for c in categorias:
@@ -1379,7 +1384,7 @@ def nuevo_producto():
         </form>
 
         <script>
-            function verificarCategoria() {{
+            function verificarCategoria() {
                 const select = document.getElementById('selectCategoria');
                 const selectedOption = select.options[select.selectedIndex];
                 const catNombre = selectedOption.getAttribute('data-nombre') || '';
@@ -1387,37 +1392,37 @@ def nuevo_producto():
                 const seccionTallas = document.getElementById('seccionStockTallas');
                 const seccionUnico = document.getElementById('seccionStockUnico');
 
-                if (catNombre.toLowerCase().includes('accesorio')) {{
+                if (catNombre.toLowerCase().includes('accesorio')) {
                     seccionTallas.style.display = 'none';
                     seccionUnico.style.display = 'block';
-                }} else {{
+                } else {
                     seccionTallas.style.display = 'grid';
                     seccionUnico.style.display = 'none';
-                }}
-            }}
+                }
+            }
 
             let cropper = null;
-            document.getElementById('inputFoto').addEventListener('change', function(e) {{
+            document.getElementById('inputFoto').addEventListener('change', function(e) {
                 const file = e.target.files[0];
-                if (file) {{
+                if (file) {
                     const reader = new FileReader();
-                    reader.onload = function(ev) {{
+                    reader.onload = function(ev) {
                         document.getElementById('imagenParaRecortar').src = ev.target.result;
                         document.getElementById('editorContainer').style.display = 'block';
                         if (cropper) cropper.destroy();
-                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
-                    }};
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
+                    };
                     reader.readAsDataURL(file);
-                }}
-            }});
-            function confirmarRecorte() {{
-                const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
+                }
+            });
+            function confirmarRecorte() {
+                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
                 const b64 = canvas.toDataURL('image/jpeg');
                 document.getElementById('imagen_recortada').value = b64;
                 document.getElementById('imgResultadoPrev').src = b64;
                 document.getElementById('editorContainer').style.display = 'none';
                 document.getElementById('vistaPreviaBox').style.display = 'block';
-            }}
+            }
         </script>
     """
     return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
@@ -1495,33 +1500,33 @@ def editar_producto(id):
     disp_unico = "block" if es_accesorio_actual else "none"
     val_total_acc = producto.get('stock_ch') or 0
 
-    content = """
+    content = f"""
         <h1>Editar Producto</h1>
         <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
             <input type="hidden" name="imagen_recortada" id="imagen_recortada">
-            <label>Nombre</label><input type="text" name="nombre" value="NOMBRE_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Nombre</label><input type="text" name="nombre" value="{str(producto.get('nombre') or '')}" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
             <label>Categoría</label>
             <select name="categoria_id" id="selectCategoria" onchange="verificarCategoria()" style="width:100%; padding:8px; margin:6px 0 16px; background:white; border:1px solid var(--border); border-radius:6px;">
                 <option value="">Sin Categoría</option>
-                OPTIONS_CAT_PLACEHOLDER
+                {options_cat}
             </select>
 
-            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="PRECIO_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="{str(producto.get('precio') or 0)}" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
-            <div id="seccionStockTallas" style="display:DISP_TALLAS_PLACEHOLDER; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
-                <div><label>Stock CH</label><input type="number" name="stock_ch" value="SCH_PLACEHOLDER" style="width:100%; padding:8px;"></div>
-                <div><label>Stock M</label><input type="number" name="stock_m" value="SM_PLACEHOLDER" style="width:100%; padding:8px;"></div>
-                <div><label>Stock G</label><input type="number" name="stock_g" value="SG_PLACEHOLDER" style="width:100%; padding:8px;"></div>
-                <div><label>Stock XG</label><input type="number" name="stock_xg" value="SXG_PLACEHOLDER" style="width:100%; padding:8px;"></div>
+            <div id="seccionStockTallas" style="display:{disp_tallas}; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                <div><label>Stock CH</label><input type="number" name="stock_ch" value="{str(producto.get('stock_ch') or 0)}" style="width:100%; padding:8px;"></div>
+                <div><label>Stock M</label><input type="number" name="stock_m" value="{str(producto.get('stock_m') or 0)}" style="width:100%; padding:8px;"></div>
+                <div><label>Stock G</label><input type="number" name="stock_g" value="{str(producto.get('stock_g') or 0)}" style="width:100%; padding:8px;"></div>
+                <div><label>Stock XG</label><input type="number" name="stock_xg" value="{str(producto.get('stock_xg') or 0)}" style="width:100%; padding:8px;"></div>
             </div>
 
-            <div id="seccionStockUnico" style="display:DISP_UNICO_PLACEHOLDER; margin-bottom:16px;">
+            <div id="seccionStockUnico" style="display:{disp_unico}; margin-bottom:16px;">
                 <label>Cantidad Disponible (Stock Total)</label>
-                <input type="number" name="stock_total" value="VAL_TOTAL_ACC" style="width:100%; padding:8px; margin-top:6px;">
+                <input type="number" name="stock_total" value="{str(val_total_acc)}" style="width:100%; padding:8px; margin-top:6px;">
             </div>
 
-            <label>Foto Actual</label><div style="margin-bottom:12px;"><img src="FOTO_PLACEHOLDER" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"></div>
+            <label>Foto Actual</label><div style="margin-bottom:12px;"><img src="{foto_actual}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"></div>
             <label>Cambiar Foto (Opcional)</label><input type="file" id="inputFoto" accept="image/*" style="width:100%; margin-bottom:16px;">
             
             <div id="editorContainer" style="display:none; background:#18181B; padding:10px; border-radius:8px; text-align:center; margin-bottom:16px;">
@@ -1538,7 +1543,7 @@ def editar_producto(id):
         </form>
 
         <script>
-            function verificarCategoria() {{
+            function verificarCategoria() {
                 const select = document.getElementById('selectCategoria');
                 const selectedOption = select.options[select.selectedIndex];
                 const catNombre = selectedOption.getAttribute('data-nombre') || '';
@@ -1546,53 +1551,41 @@ def editar_producto(id):
                 const seccionTallas = document.getElementById('seccionStockTallas');
                 const seccionUnico = document.getElementById('seccionStockUnico');
 
-                if (catNombre.toLowerCase().includes('accesorio')) {{
+                if (catNombre.toLowerCase().includes('accesorio')) {
                     seccionTallas.style.display = 'none';
                     seccionUnico.style.display = 'block';
-                }} else {{
+                } else {
                     seccionTallas.style.display = 'grid';
                     seccionUnico.style.display = 'none';
-                }}
-            }}
+                }
+            }
 
             let cropper = null;
-            document.getElementById('inputFoto').addEventListener('change', function(e) {{
+            document.getElementById('inputFoto').addEventListener('change', function(e) {
                 const file = e.target.files[0];
-                if (file) {{
+                if (file) {
                     const reader = new FileReader();
-                    reader.onload = function(ev) {{
+                    reader.onload = function(ev) {
                         document.getElementById('imagenParaRecortar').src = ev.target.result;
                         document.getElementById('editorContainer').style.display = 'block';
                         if (cropper) cropper.destroy();
-                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
-                    }};
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
+                    };
                     reader.readAsDataURL(file);
-                }}
-            }});
-            function confirmarRecorte() {{
-                const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
+                }
+            });
+            function confirmarRecorte() {
+                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
                 const b64 = canvas.toDataURL('image/jpeg');
                 document.getElementById('imagen_recortada').value = b64;
                 document.getElementById('imgResultadoPrev').src = b64;
                 document.getElementById('editorContainer').style.display = 'none';
                 document.getElementById('vistaPreviaBox').style.display = 'block';
-            }}
+            }
         </script>
     """
     
-    content_final = content.replace("NOMBRE_PLACEHOLDER", str(producto.get('nombre') or '')) \
-                           .replace("OPTIONS_CAT_PLACEHOLDER", options_cat) \
-                           .replace("PRECIO_PLACEHOLDER", str(producto.get('precio') or 0)) \
-                           .replace("SCH_PLACEHOLDER", str(producto.get('stock_ch') or 0)) \
-                           .replace("SM_PLACEHOLDER", str(producto.get('stock_m') or 0)) \
-                           .replace("SG_PLACEHOLDER", str(producto.get('stock_g') or 0)) \
-                           .replace("SXG_PLACEHOLDER", str(producto.get('stock_xg') or 0)) \
-                           .replace("VAL_TOTAL_ACC", str(val_total_acc)) \
-                           .replace("DISP_TALLAS_PLACEHOLDER", disp_tallas) \
-                           .replace("DISP_UNICO_PLACEHOLDER", disp_unico) \
-                           .replace("FOTO_PLACEHOLDER", foto_actual)
-
-    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content_final))
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/admin/producto/eliminar/<int:id>")
 @login_required
