@@ -156,9 +156,6 @@ def catalogo_tienda(slug):
         res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_cat.data if res_cat.data else []
         
-        # Crear diccionario de nombres de categorías
-        cat_dict = {c.get('id'): c.get('nombre') for c in categorias}
-        
         msg_exito = request.args.get("encargo_exito")
         pedido_id_creado = request.args.get("pedido_id")
         
@@ -203,14 +200,11 @@ def catalogo_tienda(slug):
             sxg = p.get('stock_xg') or 0
             stock_total = sch + sm + sg + sxg
             
-            # Detectar si es accesorio basándonos en el nombre de la categoría
             es_accesorio = "accesorio" in c_nombre.lower()
             if es_accesorio:
                 info_stock_html = f"Cantidad Disponible: {stock_total}"
-                talla_modal_param = "N/A"
             else:
                 info_stock_html = f"CH: {sch} | M: {sm} | G: {sg} | XG: {sxg}"
-                talla_modal_param = "con_tallas"
 
             if stock_total <= 0:
                 badge_stock = '<span class="badge-stock stock-out">Agotado</span>'
@@ -383,7 +377,6 @@ def catalogo_tienda(slug):
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Teléfono / WhatsApp</label>
                     <input type="tel" name="telefono" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
                     
-                    <!-- CAMPO DE TALLA (OCULTO SI ES ACCESORIO) -->
                     <div id="grupoTallaModal">
                         <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Selecciona tu Talla</label>
                         <select name="talla" id="selectTalla" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;">
@@ -439,7 +432,7 @@ def catalogo_tienda(slug):
                 if (esAccesorio) {
                     grupoTalla.style.display = 'none';
                     selectTalla.removeAttribute('required');
-                    selectTalla.value = "Única"; // Valor por defecto para accesorios
+                    selectTalla.value = "Única";
                 } else {
                     grupoTalla.style.display = 'block';
                     selectTalla.setAttribute('required', 'required');
@@ -608,7 +601,6 @@ def hacer_encargo():
                 nuevo_stock = max(0, (p.get('stock_xg') or 0) - 1)
                 supabase.table("productos").update({"stock_xg": nuevo_stock}).eq("id", producto_id).execute()
             else:
-                # Si es accesorio (talla "Única"), restamos del stock CH o del stock total que guardemos
                 nuevo_stock = max(0, (p.get('stock_ch') or 0) - 1)
                 supabase.table("productos").update({"stock_ch": nuevo_stock}).eq("id", producto_id).execute()
 
@@ -893,7 +885,7 @@ def admin_index():
         pass
 
     alerta_pendientes = f'<div style="background: #FEF3C7; padding: 16px; border-radius: 8px; margin-bottom: 16px;"><b>Tienes {pendientes_count} encargo(s) pendiente(s).</b> <a href="/pedidos">Ver Encargos</a></div>' if pendientes_count > 0 else ''
-    alerta_stock = f'<div style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Atención de Inventario!</b> Hay {stock_bajo_count} prenda(s) con stock bajo (3 piezas o menos). <a href="/productos" style="color: #991B1B; font-weight:700;">Revisar Productos</a></div>' if stock_bajo_count > 0 else ''
+    alerta_stock = f'<div style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Atención de Inventario!</b> Hay {stock_bajo_count} producto(s) con stock bajo (3 piezas o menos). <a href="/productos" style="color: #991B1B; font-weight:700;">Revisar Productos</a></div>' if stock_bajo_count > 0 else ''
 
     content = f"""
         {alerta_corte}
@@ -990,7 +982,7 @@ def ver_pedidos():
         </div>
         <div class="table-box">
             <table>
-                <thead><tr><th>ID</th><th>Cliente</th><th>Talla</th><th>Pago</th><th>Entrega</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>ID</th><th>Cliente</th><th>Talla / Opción</th><th>Pago</th><th>Entrega</th><th>Estatus</th><th>Acciones</th></tr></thead>
                 <tbody>{rows if rows else '<tr><td colspan="7" style="text-align:center;">No hay encargos pendientes.</td></tr>'}</tbody>
             </table>
         </div>
@@ -1165,7 +1157,7 @@ def reportes_admin():
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
             <div>
                 <h1>Reportes y Estadísticas de Tienda</h1>
-                <p style="color:var(--text-muted); font-size:0.9rem;">Monitoreo de stock crítico, prendas más solicitadas y descargas de reportes.</p>
+                <p style="color:var(--text-muted); font-size:0.9rem;">Monitoreo de stock crítico, productos más solicitados y descargas de reportes.</p>
             </div>
             <a href="/admin/reportes/exportar-csv" style="background:#047857; color:white; padding:12px 18px; border-radius:6px; text-decoration:none; font-weight:700; display:flex; align-items:center; gap:8px;">
                 <i class="fa-solid fa-file-csv"></i> Descargar Resumen CSV
@@ -1178,7 +1170,7 @@ def reportes_admin():
                     <i class="fa-solid fa-triangle-exclamation"></i> Stock Crítico (<= 3 piezas)
                 </h3>
                 <table style="min-width:100%;">
-                    <thead><tr><th>Prenda</th><th>Precio</th><th>Stock</th><th>Estatus</th></tr></thead>
+                    <thead><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>Estatus</th></tr></thead>
                     <tbody>{rows_stock if rows_stock else '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">¡Excelente! No hay productos en nivel crítico.</td></tr>'}</tbody>
                 </table>
             </div>
@@ -1188,7 +1180,7 @@ def reportes_admin():
                     <i class="fa-solid fa-fire"></i> Más Solicitados
                 </h3>
                 <table style="min-width:100%;">
-                    <thead><tr><th>Prenda</th><th>Demanda Reciente</th></tr></thead>
+                    <thead><tr><th>Producto</th><th>Demanda Reciente</th></tr></thead>
                     <tbody>{rows_top if rows_top else '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">Aún no hay registros suficientes.</td></tr>'}</tbody>
                 </table>
             </div>
@@ -1202,7 +1194,7 @@ def exportar_csv():
     tienda_id = session.get("tienda_id")
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID Encargo", "Cliente", "Telefono", "Talla", "Metodo Pago", "Plazo Entrega", "Notas", "Estatus"])
+    writer.writerow(["ID Encargo", "Cliente", "Telefono", "Talla / Opción", "Metodo Pago", "Plazo Entrega", "Notas", "Estatus"])
     
     try:
         res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).order("id", desc=True).execute()
@@ -1285,7 +1277,7 @@ def ver_productos():
     content = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
             <h1>Inventario</h1>
-            <a href="/admin/producto/nuevo" style="background:var(--primary); color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:700;">Añadir Prenda / Accesorio</a>
+            <a href="/admin/producto/nuevo" style="background:var(--primary); color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:700;">Añadir Producto / Accesorio</a>
         </div>
         <div class="table-box">
             <table>
@@ -1311,7 +1303,6 @@ def nuevo_producto():
         try:
             cat_id = int(request.form.get("categoria_id") or 0) if request.form.get("categoria_id") else None
             
-            # Verificar si la categoría seleccionada es accesorio
             es_acc = False
             for c in categorias:
                 if c.get('id') == cat_id and "accesorio" in c.get('nombre', '').lower():
@@ -1319,7 +1310,6 @@ def nuevo_producto():
                     break
 
             if es_acc:
-                # Si es accesorio, guardamos la cantidad única en stock_ch
                 stock_val = int(request.form.get("stock_total") or 0)
                 s_ch, s_m, s_g, s_xg = stock_val, 0, 0, 0
             else:
@@ -1343,7 +1333,6 @@ def nuevo_producto():
         except Exception as e:
             return f"Error: {e}"
 
-    # Generar opciones con atributo data-nombre para que JS sepa cuáles son accesorios
     options_cat = ""
     for c in categorias:
         options_cat += f"<option value='{c.get('id')}' data-nombre='{c.get('nombre')}'>{c.get('nombre')}</option>"
@@ -1362,7 +1351,6 @@ def nuevo_producto():
 
             <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
-            <!-- SECCIÓN DE STOCK DINÁMICA -->
             <div id="seccionStockTallas" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
                 <div><label>Stock CH</label><input type="number" name="stock_ch" value="5" style="width:100%; padding:8px;"></div>
                 <div><label>Stock M</label><input type="number" name="stock_m" value="5" style="width:100%; padding:8px;"></div>
@@ -1446,14 +1434,16 @@ def editar_producto(id):
 
         res_c = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_c.data if res_c.data else []
-    except:
-        return redirect(url_for("ver_productos"))
+    except Exception as e:
+        return f"Error al cargar datos: {e}"
 
     if request.method == "POST":
-        nueva_imagen = request.form.get("imagen_recortada")
-        imagen_url = nueva_imagen if nueva_imagen and nueva_imagen != "" else producto.get('imagen_url')
         try:
-            cat_id = int(request.form.get("categoria_id") or 0) if request.form.get("categoria_id") else None
+            nueva_imagen = request.form.get("imagen_recortada")
+            imagen_url = nueva_imagen if nueva_imagen and nueva_imagen != "" else producto.get('imagen_url')
+            
+            cat_id_raw = request.form.get("categoria_id")
+            cat_id = int(cat_id_raw) if cat_id_raw and cat_id_raw != "" else None
             
             es_acc = False
             for c in categorias:
@@ -1462,7 +1452,8 @@ def editar_producto(id):
                     break
 
             if es_acc:
-                stock_val = int(request.form.get("stock_total") or 0)
+                stock_val_raw = request.form.get("stock_total")
+                stock_val = int(stock_val_raw) if stock_val_raw and stock_val_raw != "" else 0
                 s_ch, s_m, s_g, s_xg = stock_val, 0, 0, 0
             else:
                 s_ch = int(request.form.get("stock_ch") or 0)
@@ -1470,24 +1461,27 @@ def editar_producto(id):
                 s_g = int(request.form.get("stock_g") or 0)
                 s_xg = int(request.form.get("stock_xg") or 0)
 
+            precio_raw = request.form.get("precio")
+            precio_val = float(precio_raw) if precio_raw and precio_raw != "" else 0.0
+
             supabase.table("productos").update({
                 "nombre": request.form.get("nombre"),
                 "categoria_id": cat_id,
-                "precio": float(request.form.get("precio") or 0),
+                "precio": precio_val,
                 "stock_ch": s_ch,
                 "stock_m": s_m,
                 "stock_g": s_g,
                 "stock_xg": s_xg,
                 "imagen_url": imagen_url
             }).eq("id", id).eq("tienda_id", tienda_id).execute()
+            
             return redirect(url_for("ver_productos"))
         except Exception as e:
-            return f"Error al actualizar: {e}"
+            return f"<div style='padding:30px; font-family:sans-serif;'><h3>Error al actualizar el producto:</h3><p>{e}</p><br><a href='/productos'>Regresar al inventario</a></div>"
 
     foto_actual = producto.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
     prod_cat_id = producto.get('categoria_id')
 
-    # Determinar si la categoría actual es accesorio
     cat_actual_nombre = ""
     options_cat = ""
     for c in categorias:
