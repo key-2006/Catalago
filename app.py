@@ -115,7 +115,6 @@ def obtener_sidebar_admin(es_superadmin=False, pedidos_pendientes=0):
                 </div>
             </div>
             <a href="/admin" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> Inicio</a>
-            <a href="/pedidos" class="nav-btn"><i class="fa-solid fa-receipt"></i> Encargos PEDIDOS_BADGE</a>
             <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
             <a href="/categorias" class="nav-btn"><i class="fa-solid fa-tags"></i> Categorías</a>
             <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
@@ -129,7 +128,7 @@ def obtener_sidebar_admin(es_superadmin=False, pedidos_pendientes=0):
     </html>
     """
     return plantilla_base.replace("EXTRA_MENU_PLACEHOLDER", extra_menu) \
-                        .replace("PEDIDOS_BADGE", badge_html)
+                        .replace("PEDIDOS_BADGE", "")
 
 @app.route("/")
 def inicio_raiz():
@@ -148,7 +147,6 @@ def login():
         res = supabase.table("tiendas").select("*").eq("slug", slug_ingresado).execute()
         if res.data:
             tienda = res.data[0]
-            # Validamos contraseña genérica de admin o la de la tienda
             if password == "admin123" or password == tienda.get("password"):
                 session["logged_in"] = True
                 session["tienda_id"] = tienda.get("id")
@@ -204,27 +202,20 @@ def admin_dashboard():
     tienda_id = session.get("tienda_id")
     res_prod = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
     total_productos = len(res_prod.data) if res_prod.data else 0
-    
-    res_pedidos = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).execute()
-    total_pedidos = len(res_pedidos.data) if res_pedidos.data else 0
 
     contenido = f"""
     <div class="header-title">
         <h1>Bienvenido, {session.get('tienda_nombre')}</h1>
-        <p style="color: var(--text-muted);">Desde aquí puedes gestionar todo el inventario y estado de tu tienda.</p>
+        <p style="color: var(--text-muted);">Desde aquí puedes gestionar todo el inventario de tu tienda.</p>
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px;">
         <div style="background: white; padding: 24px; border-radius: 8px; border: 1px solid var(--border);">
             <h3 style="color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Total Productos</h3>
             <p style="font-size: 2rem; font-weight: 800; color: var(--primary); margin-top: 8px;">{total_productos}</p>
         </div>
-        <div style="background: white; padding: 24px; border-radius: 8px; border: 1px solid var(--border);">
-            <h3 style="color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase;">Encargos Totales</h3>
-            <p style="font-size: 2rem; font-weight: 800; color: #059669; margin-top: 8px;">{total_pedidos}</p>
-        </div>
     </div>
     """
-    return render_template_string(obtener_sidebar_admin(pedidos_pendientes=0).replace("CONTENT_PLACEHOLDER", contenido))
+    return render_template_string(obtener_sidebar_admin().replace("CONTENT_PLACEHOLDER", contenido))
 
 @app.route("/productos")
 @login_required
@@ -286,11 +277,17 @@ def nuevo_producto():
         nombre = request.form.get("nombre")
         precio = float(request.form.get("precio") or 0)
         categoria_id = request.form.get("categoria_id")
-        imagen_url = request.form.get("imagen_url")
         stock_ch = int(request.form.get("stock_ch") or 0)
         stock_m = int(request.form.get("stock_m") or 0)
         stock_g = int(request.form.get("stock_g") or 0)
         stock_xg = int(request.form.get("stock_xg") or 0)
+
+        imagen_url = "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
+        archivo_foto = request.files.get("foto")
+        if archivo_foto and archivo_foto.filename != "":
+            contenido_bytes = archivo_foto.read()
+            encoded = base64.b64encode(contenido_bytes).decode("utf-8")
+            imagen_url = f"data:image/jpeg;base64,{encoded}"
 
         supabase.table("productos").insert({
             "tienda_id": tienda_id,
@@ -313,11 +310,11 @@ def nuevo_producto():
         <h1>Agregar Nueva Prenda</h1>
     </div>
     <div class="table-box" style="max-width: 600px;">
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <div class="form-group"><label>Nombre de la Prenda</label><input type="text" name="nombre" required></div>
             <div class="form-group"><label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required></div>
             <div class="form-group"><label>Categoría</label><select name="categoria_id"><option value="">Selecciona...</option>{opts_cat}</select></div>
-            <div class="form-group"><label>URL de la Imagen</label><input type="url" name="imagen_url" placeholder="https://..."></div>
+            <div class="form-group"><label>Foto del Producto (Desde tu equipo)</label><input type="file" name="foto" accept="image/*"></div>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
                 <div class="form-group"><label>Stock CH</label><input type="number" name="stock_ch" value="0"></div>
                 <div class="form-group"><label>Stock M</label><input type="number" name="stock_m" value="0"></div>
@@ -334,15 +331,26 @@ def nuevo_producto():
 @login_required
 def editar_producto(id):
     tienda_id = session.get("tienda_id")
+    res_p = supabase.table("productos").select("*").eq("id", id).eq("tienda_id", tienda_id).execute()
+    if not res_p.data:
+        return redirect(url_for("listar_productos"))
+    prod = res_p.data[0]
+
     if request.method == "POST":
         nombre = request.form.get("nombre")
         precio = float(request.form.get("precio") or 0)
         categoria_id = request.form.get("categoria_id")
-        imagen_url = request.form.get("imagen_url")
         stock_ch = int(request.form.get("stock_ch") or 0)
         stock_m = int(request.form.get("stock_m") or 0)
         stock_g = int(request.form.get("stock_g") or 0)
         stock_xg = int(request.form.get("stock_xg") or 0)
+
+        imagen_url = prod.get("imagen_url")
+        archivo_foto = request.files.get("foto")
+        if archivo_foto and archivo_foto.filename != "":
+            contenido_bytes = archivo_foto.read()
+            encoded = base64.b64encode(contenido_bytes).decode("utf-8")
+            imagen_url = f"data:image/jpeg;base64,{encoded}"
 
         supabase.table("productos").update({
             "nombre": nombre,
@@ -356,11 +364,6 @@ def editar_producto(id):
         }).eq("id", id).eq("tienda_id", tienda_id).execute()
         return redirect(url_for("listar_productos"))
 
-    res_p = supabase.table("productos").select("*").eq("id", id).eq("tienda_id", tienda_id).execute()
-    if not res_p.data:
-        return redirect(url_for("listar_productos"))
-    prod = res_p.data[0]
-
     res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
     opts_cat = ""
     for c in (res_cat.data or []):
@@ -372,11 +375,16 @@ def editar_producto(id):
         <h1>Editar Prenda</h1>
     </div>
     <div class="table-box" style="max-width: 600px;">
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             <div class="form-group"><label>Nombre de la Prenda</label><input type="text" name="nombre" value="{prod.get('nombre','')}" required></div>
             <div class="form-group"><label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="{prod.get('precio','')}" required></div>
             <div class="form-group"><label>Categoría</label><select name="categoria_id"><option value="">Selecciona...</option>{opts_cat}</select></div>
-            <div class="form-group"><label>URL de la Imagen</label><input type="url" name="imagen_url" value="{prod.get('imagen_url','')}" placeholder="https://..."></div>
+            <div class="form-group">
+                <label>Foto Actual</label>
+                <img src="{prod.get('imagen_url','')}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; display: block; margin-bottom: 8px;">
+                <label>Cambiar Foto (Opcional)</label>
+                <input type="file" name="foto" accept="image/*">
+            </div>
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
                 <div class="form-group"><label>Stock CH</label><input type="number" name="stock_ch" value="{prod.get('stock_ch', 0)}"></div>
                 <div class="form-group"><label>Stock M</label><input type="number" name="stock_m" value="{prod.get('stock_m', 0)}"></div>
@@ -548,7 +556,7 @@ def catalogo_tienda(slug):
             .hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
             .hero p { color: #A1A1AA; font-size: 0.95rem; margin-bottom: 20px; }
             .search-box-wrapper { max-width: 500px; margin: 0 auto; position: relative; }
-            .search-input { width: 100%; padding: 14px 20px 14px 45px; border-radius: 99px; border: 1px solid #3F3F46; background: #27272A; color: white; font-size: 0.95net; outline: none; }
+            .search-input { width: 100%; padding: 14px 20px 14px 45px; border-radius: 99px; border: 1px solid #3F3F46; background: #27272A; color: white; font-size: 0.95rem; outline: none; }
             .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #A1A1AA; }
             .container-main { max-width: 1200px; margin: 2.5rem auto; padding: 0 1.5rem; }
             .category-section { margin-bottom: 3rem; }
