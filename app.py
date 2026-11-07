@@ -1,8 +1,10 @@
-from flask import Flask, request, render_template_string, redirect, url_for, session
+from flask import Flask, request, render_template_string, redirect, url_for, session, Response
 from functools import wraps
 from supabase import create_client, Client
 from datetime import datetime, timezone, timedelta
 import base64
+import csv
+import io
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_multiusuario_tiendas_123"
@@ -110,6 +112,7 @@ def obtener_sidebar_admin(es_superadmin=False, pedidos_pendientes=0):
             <a href="/pedidos" class="nav-btn" style="display:flex; align-items:center;"><i class="fa-solid fa-receipt"></i> Encargos PEDIDOS_BADGE</a>
             <a href="/productos" class="nav-btn"><i class="fa-solid fa-box-open"></i> Productos</a>
             <a href="/categorias" class="nav-btn"><i class="fa-solid fa-tags"></i> Categorías</a>
+            <a href="/admin/reportes" class="nav-btn" style="color: #FCD34D;"><i class="fa-solid fa-chart-line"></i> Reportes / Analytics</a>
             <a href="/admin/ver-catalogo" class="nav-btn" target="_blank" style="background: rgba(16, 185, 129, 0.15); color: #6EE7B7;"><i class="fa-solid fa-globe"></i> Ver mi Catálogo</a>
             EXTRA_MENU_PLACEHOLDER
             <a href="/logout" class="nav-btn logout-link"><i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión</a>
@@ -863,10 +866,11 @@ def admin_index():
         {alerta_pendientes}
         {alerta_stock}
         <div class="header-title"><h1>Panel de {nombre_tienda}</h1></div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; max-width: 900px;">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
             <a href="/pedidos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Encargos</h3></div></a>
             <a href="/productos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Productos</h3></div></a>
             <a href="/categorias" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Categorías</h3></div></a>
+            <a href="/admin/reportes" style="text-decoration:none;"><div style="background:#FFFBEB; border:1px solid #FCD34D; padding:24px; border-radius:8px;"><h3 style="color:#92400E;"><i class="fa-solid fa-chart-line"></i> Reportes</h3></div></a>
         </div>
     """
     return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False), pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
@@ -946,7 +950,10 @@ def ver_pedidos():
         rows += f"<tr><td><strong>#{p_id}</strong></td><td>{ped.get('cliente')}</td><td><b>{talla_ped}</b></td><td>{ped.get('metodo_pago')}</td><td>{ped.get('tiempo_entrega')}</td><td>{badge}</td><td>{acc}</td></tr>"
 
     content = f"""
-        <h1>Encargos Recibidos</h1>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h1>Encargos Recibidos</h1>
+            <a href="/admin/reportes/exportar-csv" style="background:#047857; color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:700;"><i class="fa-solid fa-file-csv"></i> Descargar CSV</a>
+        </div>
         <div class="table-box">
             <table>
                 <thead><tr><th>ID</th><th>Cliente</th><th>Talla</th><th>Pago</th><th>Entrega</th><th>Estatus</th><th>Acciones</th></tr></thead>
@@ -993,7 +1000,6 @@ def cancelar_pedido(id):
         pass
     return redirect(url_for("ver_pedidos"))
 
-# --- MÓDULO DE CATEGORÍAS ---
 @app.route("/categorias")
 @login_required
 def ver_categorias():
@@ -1009,7 +1015,7 @@ def ver_categorias():
     for cat in categorias:
         c_id = cat.get('id')
         c_nombre = cat.get('nombre')
-        rows += f"<tr><td><strong>#{c_id}</strong></td><td>{c_nombre}</td><td><a href='/categorias/eliminar/{c_id}' onclick=\"return confirm('¿Deseas eliminar esta categoría?');\" style='background:#FEF2F2; color:#B91C1B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a></td></tr>"
+        rows += f"<tr><td><strong>#{c_id}</strong></td><td>{c_nombre}</td><td><a href='/categorias/eliminar/{c_id}' onclick=\"return confirm('¿Deseas eliminar esta categoría?');\" style='background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a></td></tr>"
 
     content = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -1057,6 +1063,145 @@ def eliminar_categoria(id):
         pass
     return redirect(url_for("ver_categorias"))
 
+# --- MÓDULO NUEVO: REPORTES & ANALYTICS ---
+@app.route("/admin/reportes")
+@login_required
+def reportes_admin():
+    tienda_id = session.get("tienda_id")
+    
+    productos_bajo_stock = []
+    conteo_ventas_prod = {}
+    nombres_prod = {}
+    
+    try:
+        # 1. Obtener prendas con poco stock
+        res_prods = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
+        if res_prods.data:
+            for p in res_prods.data:
+                p_id = p.get('id')
+                nombres_prod[p_id] = p.get('nombre')
+                sch = p.get('stock_ch') or 0
+                sm = p.get('stock_m') or 0
+                sg = p.get('stock_g') or 0
+                sxg = p.get('stock_xg') or 0
+                total_s = sch + sm + sg + sxg
+                
+                if total_s <= 3:
+                    productos_bajo_stock.append({
+                        "nombre": p.get('nombre'),
+                        "precio": p.get('precio'),
+                        "sch": sch, "sm": sm, "sg": sg, "sxg": sxg,
+                        "total": total_s
+                    })
+
+        # 2. Contabilizar demanda de pedidos por producto
+        res_peds = supabase.table("pedidos").select("producto_id").eq("tienda_id", tienda_id).execute()
+        if res_peds.data:
+            for ped in res_peds.data:
+                pid = ped.get('producto_id')
+                if pid:
+                    conteo_ventas_prod[pid] = conteo_ventas_prod.get(pid, 0) + 1
+
+    except Exception as e:
+        pass
+
+    # Ordenar productos más pedidos
+    top_vendidos = sorted(conteo_ventas_prod.items(), key=lambda x: x[1], reverse=True)
+
+    rows_stock = ""
+    for p in productos_bajo_stock:
+        color_badge = "#EF4444" if p['total'] == 0 else "#F59E0B"
+        txt_estatus = "AGOTADO" if p['total'] == 0 else "CRÍTICO"
+        rows_stock += f"""
+        <tr>
+            <td><strong>{p['nombre']}</strong></td>
+            <td>${p['precio']} MXN</td>
+            <td>CH: {p['sch']} | M: {p['sm']} | G: {p['sg']} | XG: {p['sxg']}</td>
+            <td><span style="background:{color_badge}; color:white; padding:4px 10px; border-radius:99px; font-weight:800; font-size:0.75rem;">{txt_estatus} ({p['total']} disp.)</span></td>
+        </tr>
+        """
+
+    rows_top = ""
+    for pid, cant in top_vendidos:
+        nombre = nombres_prod.get(pid, f"Prenda #{pid}")
+        rows_top += f"""
+        <tr>
+            <td><strong>{nombre}</strong></td>
+            <td><span style="background:#ECFDF5; color:#047857; padding:4px 12px; border-radius:99px; font-weight:700;">{cant} encargo(s)</span></td>
+        </tr>
+        """
+
+    content = f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+            <div>
+                <h1>Reportes y Estadísticas de Tienda</h1>
+                <p style="color:var(--text-muted); font-size:0.9rem;">Monitoreo de stock crítico, prendas más solicitadas y descargas de reportes.</p>
+            </div>
+            <a href="/admin/reportes/exportar-csv" style="background:#047857; color:white; padding:12px 18px; border-radius:6px; text-decoration:none; font-weight:700; display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-file-csv"></i> Descargar Resumen CSV
+            </a>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; align-items:start;">
+            <!-- Alertas de Bajo Stock -->
+            <div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);">
+                <h3 style="color:#B91C1C; margin-bottom:16px; font-size:1.1rem; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Prendas Agotadas o por Agotarse (<= 3 piezas)
+                </h3>
+                <table style="min-width:100%;">
+                    <thead><tr><th>Prenda</th><th>Precio</th><th>Stock Tallas</th><th>Estatus</th></tr></thead>
+                    <tbody>{rows_stock if rows_stock else '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">¡Excelente! No hay productos en nivel crítico.</td></tr>'}</tbody>
+                </table>
+            </div>
+
+            <!-- Top Productos Más Solicitados -->
+            <div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);">
+                <h3 style="color:#1E3A8A; margin-bottom:16px; font-size:1.1rem; display:flex; align-items:center; gap:8px;">
+                    <i class="fa-solid fa-fire"></i> Prendas Más Vendidas / Solicitadas
+                </h3>
+                <table style="min-width:100%;">
+                    <thead><tr><th>Prenda</th><th>Demanda Reciente</th></tr></thead>
+                    <tbody>{rows_top if rows_top else '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">Aún no hay registros suficientes de pedidos.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>
+    """
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
+
+@app.route("/admin/reportes/exportar-csv")
+@login_required
+def exportar_csv():
+    tienda_id = session.get("tienda_id")
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Encabezados del reporte CSV
+    writer.writerow(["ID Encargo", "Cliente", "Telefono", "Talla", "Metodo Pago", "Plazo Entrega", "Notas", "Estatus"])
+    
+    try:
+        res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).order("id", desc=True).execute()
+        if res.data:
+            for p in res.data:
+                writer.writerow([
+                    p.get("id"),
+                    p.get("cliente"),
+                    p.get("telefono"),
+                    p.get("talla") or "N/A",
+                    p.get("metodo_pago"),
+                    p.get("tiempo_entrega"),
+                    p.get("notas") or "",
+                    p.get("estado") or "Pendiente"
+                ])
+    except:
+        pass
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=Reporte_Encargos_Tienda_{tienda_id}.csv"}
+    )
+
 @app.route("/productos")
 @login_required
 def ver_productos():
@@ -1088,8 +1233,8 @@ def ver_productos():
         badge_estilo = "background:#ECFDF5; color:#047857;"
         texto_alerta_stock = f"CH:{sch} | M:{sm} | G:{sg} | XG:{sxg}"
         if total_st <= 3:
-            badge_estilo = "background:#FEF2F2; color:#B91C1B; font-weight:700;"
-            texto_alerta_stock += ' <span style="background:#B91C1B; color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem;">¡BAJO!</span>'
+            badge_estilo = "background:#FEF2F2; color:#B91C1C; font-weight:700;"
+            texto_alerta_stock += ' <span style="background:#B91C1C; color:white; padding:2px 6px; border-radius:4px; font-size:0.7rem;">¡BAJO!</span>'
 
         rows += f"""
         <tr>
@@ -1101,7 +1246,7 @@ def ver_productos():
             <td><span style="padding:4px 8px; border-radius:4px; {badge_estilo}">{texto_alerta_stock}</span></td>
             <td>
                 <a href='/admin/producto/editar/{p.get('id')}' style='background:#F4F4F5; color:#18181B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;'><i class='fa-solid fa-pen'></i> Editar</a>
-                <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
+                <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
             </td>
         </tr>
         """
@@ -1304,7 +1449,7 @@ def editar_producto(id):
                         cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
                     }};
                     reader.readAsDataURL(file);
-                }
+                }}
             }});
             function confirmarRecorte() {{
                 const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
