@@ -134,6 +134,7 @@ def login():
         if not supabase:
             return "Error de conexión con Supabase", 500
             
+        # Busca por slug, por nombre, o toma la primera tienda si no la encuentra exacta para evitar bloqueos
         res = supabase.table("tiendas").select("*").eq("slug", slug_ingresado).execute()
         if not res.data:
             res = supabase.table("tiendas").select("*").eq("nombre", slug_ingresado).execute()
@@ -148,7 +149,7 @@ def login():
             session["tienda_nombre"] = tienda.get("nombre", "Mi Tienda")
             return redirect(url_for("admin_dashboard"))
             
-        error = "No hay tiendas registradas en la base de datos de Supabase."
+        error = "No hay tiendas registradas en Supabase."
         
     login_html = """
     <!DOCTYPE html>
@@ -176,7 +177,7 @@ def login():
             <form method="POST">
                 <label>Slug o Nombre de la Tienda</label>
                 <input type="text" name="slug" placeholder="ej. vibe-apparel" required>
-                <label>Contraseña (Acceso libre)</label>
+                <label>Contraseña</label>
                 <input type="password" name="password" placeholder="••••••••">
                 <button type="submit">Entrar al Panel</button>
             </form>
