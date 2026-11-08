@@ -1301,6 +1301,7 @@ def nuevo_producto():
     if request.method == "POST":
         try:
             cat_id_raw = request.form.get("categoria_id")
+           cat_id_raw = request.form.get("categoria_id")
             cat_id = int(cat_id_raw) if cat_id_raw and cat_id_raw != "" else None
             
             es_acc = False
