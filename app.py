@@ -1024,9 +1024,9 @@ def cancelar_pedido(id):
                         supabase.table("productos").update({"stock_ch": (p.get('stock_ch') or 0) + 1}).eq("id", prod_id).execute()
             
             supabase.table("pedidos").delete().eq("id", id).eq("tienda_id", session.get("tienda_id")).execute()
-    except:
-        pass
-    return redirect(url_for("ver_pedidos"))
+			except:
+			    pass
+			return redirect(url_for("ver_pedidos"))
 @app.route("/categorias")
 @login_required
 def ver_categorias():
