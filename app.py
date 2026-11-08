@@ -405,9 +405,9 @@ def catalogo_tienda(slug):
 
 					<label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Tiempo de Entrega Deseado</label>
 					<select name="tiempo_entrega" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;" required>
-						<option value="Entrega Inmediata (Hoy / Mañana)">⚡ Entrega Inmediata (Hoy / Mañana)</option>
-						<option value="En 2 a 3 días">📦 En 2 a 3 días</option>
-						<option value="Programado (Más de 3 días)">📅 Programado (Más de 3 días)</option>
+						<option value="Entrega Inmediata (Hoy / Mañana)">Entrega Inmediata (Hoy / Mañana)</option>
+						<option value="En 2 a 3 días">En 2 a 3 días</option>
+						<option value="Programado (Más de 3 días)">Programado (Más de 3 días)</option>
 					</select>
 
 					<label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Notas Adicionales</label>
@@ -529,8 +529,8 @@ def catalogo_tienda(slug):
 		</script>
 		"""
 		
-		texto_whatsapp = f"Hola! Acabo de hacer un encargo en {tienda.get('nombre')}%0A*Folio:* #{p_id}%0A*Cliente:* {p_cliente}%0A*Talla:* {p_talla}%0A*Pago:* {p_pago}%0A*Entrega:* {p_entrega}"
-		link_ws = f"https://wa.me/?text={texto_whatsapp}"
+		texto_whatsapp = "Hola! Acabo de hacer un encargo en " + tienda.get('nombre') + " - Folio: #" + str(p_id) + " - Talla: " + str(p_talla) + " - Pago: " + str(p_pago)
+		link_ws = "https://wa.me/?text=" + texto_whatsapp.replace(" ", "%20")
 
 		alerta_html = f"""
 		{script_guardar_local}
