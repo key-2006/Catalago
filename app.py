@@ -529,9 +529,8 @@ def catalogo_tienda(slug):
 		</script>
 		"""
 		
-        texto_whatsapp = "Hola! Acabo de hacer un encargo en " + tienda.get('nombre') + " - Folio: #" + str(p_id) + " - Talla: " + str(p_talla) + " - Pago: " + str(p_pago) + " - Entrega: " + str(p_entrega)
-        link_ws = "https://wa.me/?text=" + texto_whatsapp.replace(" ", "%20")
-      
+		texto_whatsapp = "Hola! Acabo de hacer un encargo en " + tienda.get('nombre') + " - Folio: #" + str(p_id) + " - Talla: " + str(p_talla) + " - Pago: " + str(p_pago)
+		link_ws = "https://wa.me/?text=" + texto_whatsapp.replace(" ", "%20")
 
 		alerta_html = f"""
 		{script_guardar_local}
