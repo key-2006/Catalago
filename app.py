@@ -1342,7 +1342,7 @@ def nuevo_producto():
 	for c in categorias:
 		options_cat += f"<option value='{c.get('id')}' data-nombre='{c.get('nombre')}'>{c.get('nombre')}</option>"
 
-	content = f"""
+	content = """
 		<h1>Nuevo Producto</h1>
 		<form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
 			<input type="hidden" name="imagen_recortada" id="imagen_recortada" required>
@@ -1351,7 +1351,7 @@ def nuevo_producto():
 			<label>Categoría</label>
 			<select name="categoria_id" id="selectCategoria" onchange="verificarCategoria()" style="width:100%; padding:8px; margin:6px 0 16px; background:white; border:1px solid var(--border); border-radius:6px;" required>
 				<option value="" disabled selected>Elige una categoría...</option>
-				{options_cat}
+				OPTIONS_CAT_PLACEHOLDER
 			</select>
 
 			<label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required style="width:100%; padding:8px; margin:6px 0 16px;">
@@ -1425,7 +1425,9 @@ def nuevo_producto():
 			}
 		</script>
 	"""
-	return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
+
+	content_final = content.replace("OPTIONS_CAT_PLACEHOLDER", options_cat)
+	return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content_final))
 
 @app.route("/admin/producto/editar/<int:id>", methods=["GET", "POST"])
 @login_required
