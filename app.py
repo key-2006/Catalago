@@ -156,6 +156,9 @@ def catalogo_tienda(slug):
         res_cat = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_cat.data if res_cat.data else []
         
+        # Crear diccionario de nombres de categorías
+        cat_dict = {c.get('id'): c.get('nombre') for c in categorias}
+        
         msg_exito = request.args.get("encargo_exito")
         pedido_id_creado = request.args.get("pedido_id")
         
@@ -200,11 +203,14 @@ def catalogo_tienda(slug):
             sxg = p.get('stock_xg') or 0
             stock_total = sch + sm + sg + sxg
             
+            # Detectar si es accesorio basándonos en el nombre de la categoría
             es_accesorio = "accesorio" in c_nombre.lower()
             if es_accesorio:
                 info_stock_html = f"Cantidad Disponible: {stock_total}"
+                talla_modal_param = "N/A"
             else:
                 info_stock_html = f"CH: {sch} | M: {sm} | G: {sg} | XG: {sxg}"
+                talla_modal_param = "con_tallas"
 
             if stock_total <= 0:
                 badge_stock = '<span class="badge-stock stock-out">Agotado</span>'
@@ -377,6 +383,7 @@ def catalogo_tienda(slug):
                     <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Teléfono / WhatsApp</label>
                     <input type="tel" name="telefono" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
                     
+                    <!-- CAMPO DE TALLA (OCULTO SI ES ACCESORIO) -->
                     <div id="grupoTallaModal">
                         <label style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--muted);">Selecciona tu Talla</label>
                         <select name="talla" id="selectTalla" style="width:100%; padding:10px 12px; margin:6px 0 16px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem; background:white;">
@@ -432,7 +439,7 @@ def catalogo_tienda(slug):
                 if (esAccesorio) {
                     grupoTalla.style.display = 'none';
                     selectTalla.removeAttribute('required');
-                    selectTalla.value = "Única";
+                    selectTalla.value = "Única"; // Valor por defecto para accesorios
                 } else {
                     grupoTalla.style.display = 'block';
                     selectTalla.setAttribute('required', 'required');
@@ -601,6 +608,7 @@ def hacer_encargo():
                 nuevo_stock = max(0, (p.get('stock_xg') or 0) - 1)
                 supabase.table("productos").update({"stock_xg": nuevo_stock}).eq("id", producto_id).execute()
             else:
+                # Si es accesorio (talla "Única"), restamos del stock CH o del stock total que guardemos
                 nuevo_stock = max(0, (p.get('stock_ch') or 0) - 1)
                 supabase.table("productos").update({"stock_ch": nuevo_stock}).eq("id", producto_id).execute()
 
@@ -885,7 +893,7 @@ def admin_index():
         pass
 
     alerta_pendientes = f'<div style="background: #FEF3C7; padding: 16px; border-radius: 8px; margin-bottom: 16px;"><b>Tienes {pendientes_count} encargo(s) pendiente(s).</b> <a href="/pedidos">Ver Encargos</a></div>' if pendientes_count > 0 else ''
-    alerta_stock = f'<div style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Atención de Inventario!</b> Hay {stock_bajo_count} producto(s) con stock bajo (3 piezas o menos). <a href="/productos" style="color: #991B1B; font-weight:700;">Revisar Productos</a></div>' if stock_bajo_count > 0 else ''
+    alerta_stock = f'<div style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Atención de Inventario!</b> Hay {stock_bajo_count} prenda(s) con stock bajo (3 piezas o menos). <a href="/productos" style="color: #991B1B; font-weight:700;">Revisar Productos</a></div>' if stock_bajo_count > 0 else ''
 
     content = f"""
         {alerta_corte}
@@ -982,7 +990,7 @@ def ver_pedidos():
         </div>
         <div class="table-box">
             <table>
-                <thead><tr><th>ID</th><th>Cliente</th><th>Talla / Opción</th><th>Pago</th><th>Entrega</th><th>Estatus</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>ID</th><th>Cliente</th><th>Talla</th><th>Pago</th><th>Entrega</th><th>Estatus</th><th>Acciones</th></tr></thead>
                 <tbody>{rows if rows else '<tr><td colspan="7" style="text-align:center;">No hay encargos pendientes.</td></tr>'}</tbody>
             </table>
         </div>
@@ -1157,7 +1165,7 @@ def reportes_admin():
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
             <div>
                 <h1>Reportes y Estadísticas de Tienda</h1>
-                <p style="color:var(--text-muted); font-size:0.9rem;">Monitoreo de stock crítico, productos más solicitados y descargas de reportes.</p>
+                <p style="color:var(--text-muted); font-size:0.9rem;">Monitoreo de stock crítico, prendas más solicitadas y descargas de reportes.</p>
             </div>
             <a href="/admin/reportes/exportar-csv" style="background:#047857; color:white; padding:12px 18px; border-radius:6px; text-decoration:none; font-weight:700; display:flex; align-items:center; gap:8px;">
                 <i class="fa-solid fa-file-csv"></i> Descargar Resumen CSV
@@ -1170,7 +1178,7 @@ def reportes_admin():
                     <i class="fa-solid fa-triangle-exclamation"></i> Stock Crítico (<= 3 piezas)
                 </h3>
                 <table style="min-width:100%;">
-                    <thead><tr><th>Producto</th><th>Precio</th><th>Stock</th><th>Estatus</th></tr></thead>
+                    <thead><tr><th>Prenda</th><th>Precio</th><th>Stock</th><th>Estatus</th></tr></thead>
                     <tbody>{rows_stock if rows_stock else '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">¡Excelente! No hay productos en nivel crítico.</td></tr>'}</tbody>
                 </table>
             </div>
@@ -1180,7 +1188,7 @@ def reportes_admin():
                     <i class="fa-solid fa-fire"></i> Más Solicitados
                 </h3>
                 <table style="min-width:100%;">
-                    <thead><tr><th>Producto</th><th>Demanda Reciente</th></tr></thead>
+                    <thead><tr><th>Prenda</th><th>Demanda Reciente</th></tr></thead>
                     <tbody>{rows_top if rows_top else '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">Aún no hay registros suficientes.</td></tr>'}</tbody>
                 </table>
             </div>
@@ -1194,7 +1202,7 @@ def exportar_csv():
     tienda_id = session.get("tienda_id")
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID Encargo", "Cliente", "Telefono", "Talla / Opción", "Metodo Pago", "Plazo Entrega", "Notas", "Estatus"])
+    writer.writerow(["ID Encargo", "Cliente", "Telefono", "Talla", "Metodo Pago", "Plazo Entrega", "Notas", "Estatus"])
     
     try:
         res = supabase.table("pedidos").select("*").eq("tienda_id", tienda_id).order("id", desc=True).execute()
@@ -1269,7 +1277,7 @@ def ver_productos():
             <td><span style="padding:4px 8px; border-radius:4px; {badge_estilo}">{texto_stock}</span></td>
             <td>
                 <a href='/admin/producto/editar/{p.get('id')}' style='background:#F4F4F5; color:#18181B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:4px;'><i class='fa-solid fa-pen'></i> Editar</a>
-                <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1B; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
+                <a href='/admin/producto/eliminar/{p.get('id')}' onclick="return confirm('¿Estás seguro de eliminar este producto?');" style='background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;'><i class='fa-solid fa-trash'></i> Borrar</a>
             </td>
         </tr>
         """
@@ -1277,7 +1285,7 @@ def ver_productos():
     content = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
             <h1>Inventario</h1>
-            <a href="/admin/producto/nuevo" style="background:var(--primary); color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:700;">Añadir Producto / Accesorio</a>
+            <a href="/admin/producto/nuevo" style="background:var(--primary); color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:700;">Añadir Prenda / Accesorio</a>
         </div>
         <div class="table-box">
             <table>
@@ -1301,9 +1309,9 @@ def nuevo_producto():
 
     if request.method == "POST":
         try:
-            cat_id_raw = request.form.get("categoria_id")
-            cat_id = int(cat_id_raw) if cat_id_raw and cat_id_raw != "" else None
+            cat_id = int(request.form.get("categoria_id") or 0) if request.form.get("categoria_id") else None
             
+            # Verificar si la categoría seleccionada es accesorio
             es_acc = False
             for c in categorias:
                 if c.get('id') == cat_id and "accesorio" in c.get('nombre', '').lower():
@@ -1311,8 +1319,8 @@ def nuevo_producto():
                     break
 
             if es_acc:
-                stock_val_raw = request.form.get("stock_total")
-                stock_val = int(stock_val_raw) if stock_val_raw and stock_val_raw != "" else 0
+                # Si es accesorio, guardamos la cantidad única en stock_ch
+                stock_val = int(request.form.get("stock_total") or 0)
                 s_ch, s_m, s_g, s_xg = stock_val, 0, 0, 0
             else:
                 s_ch = int(request.form.get("stock_ch") or 0)
@@ -1320,14 +1328,11 @@ def nuevo_producto():
                 s_g = int(request.form.get("stock_g") or 0)
                 s_xg = int(request.form.get("stock_xg") or 0)
 
-            precio_raw = request.form.get("precio")
-            precio_val = float(precio_raw) if precio_raw and precio_raw != "" else 0.0
-
             supabase.table("productos").insert({
                 "tienda_id": tienda_id,
                 "nombre": request.form.get("nombre"),
                 "categoria_id": cat_id,
-                "precio": precio_val,
+                "precio": float(request.form.get("precio") or 0),
                 "stock_ch": s_ch,
                 "stock_m": s_m,
                 "stock_g": s_g,
@@ -1336,8 +1341,9 @@ def nuevo_producto():
             }).execute()
             return redirect(url_for("ver_productos"))
         except Exception as e:
-            return f"<div style='padding:30px; font-family:sans-serif;'><h3>Error al crear el producto:</h3><p>{e}</p><br><a href='/productos'>Regresar</a></div>"
+            return f"Error: {e}"
 
+    # Generar opciones con atributo data-nombre para que JS sepa cuáles son accesorios
     options_cat = ""
     for c in categorias:
         options_cat += f"<option value='{c.get('id')}' data-nombre='{c.get('nombre')}'>{c.get('nombre')}</option>"
@@ -1356,6 +1362,7 @@ def nuevo_producto():
 
             <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
+            <!-- SECCIÓN DE STOCK DINÁMICA -->
             <div id="seccionStockTallas" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
                 <div><label>Stock CH</label><input type="number" name="stock_ch" value="5" style="width:100%; padding:8px;"></div>
                 <div><label>Stock M</label><input type="number" name="stock_m" value="5" style="width:100%; padding:8px;"></div>
@@ -1384,7 +1391,7 @@ def nuevo_producto():
         </form>
 
         <script>
-            function verificarCategoria() {
+            function verificarCategoria() {{
                 const select = document.getElementById('selectCategoria');
                 const selectedOption = select.options[select.selectedIndex];
                 const catNombre = selectedOption.getAttribute('data-nombre') || '';
@@ -1392,37 +1399,37 @@ def nuevo_producto():
                 const seccionTallas = document.getElementById('seccionStockTallas');
                 const seccionUnico = document.getElementById('seccionStockUnico');
 
-                if (catNombre.toLowerCase().includes('accesorio')) {
+                if (catNombre.toLowerCase().includes('accesorio')) {{
                     seccionTallas.style.display = 'none';
                     seccionUnico.style.display = 'block';
-                } else {
+                }} else {{
                     seccionTallas.style.display = 'grid';
                     seccionUnico.style.display = 'none';
-                }
-            }
+                }}
+            }}
 
             let cropper = null;
-            document.getElementById('inputFoto').addEventListener('change', function(e) {
+            document.getElementById('inputFoto').addEventListener('change', function(e) {{
                 const file = e.target.files[0];
-                if (file) {
+                if (file) {{
                     const reader = new FileReader();
-                    reader.onload = function(ev) {
+                    reader.onload = function(ev) {{
                         document.getElementById('imagenParaRecortar').src = ev.target.result;
                         document.getElementById('editorContainer').style.display = 'block';
                         if (cropper) cropper.destroy();
-                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
-                    };
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
+                    }};
                     reader.readAsDataURL(file);
-                }
-            });
-            function confirmarRecorte() {
-                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+                }}
+            }});
+            function confirmarRecorte() {{
+                const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
                 const b64 = canvas.toDataURL('image/jpeg');
                 document.getElementById('imagen_recortada').value = b64;
                 document.getElementById('imgResultadoPrev').src = b64;
                 document.getElementById('editorContainer').style.display = 'none';
                 document.getElementById('vistaPreviaBox').style.display = 'block';
-            }
+            }}
         </script>
     """
     return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
@@ -1439,16 +1446,14 @@ def editar_producto(id):
 
         res_c = supabase.table("categorias").select("*").eq("tienda_id", tienda_id).execute()
         categorias = res_c.data if res_c.data else []
-    except Exception as e:
-        return f"Error al cargar datos: {e}"
+    except:
+        return redirect(url_for("ver_productos"))
 
     if request.method == "POST":
+        nueva_imagen = request.form.get("imagen_recortada")
+        imagen_url = nueva_imagen if nueva_imagen and nueva_imagen != "" else producto.get('imagen_url')
         try:
-            nueva_imagen = request.form.get("imagen_recortada")
-            imagen_url = nueva_imagen if nueva_imagen and nueva_imagen != "" else producto.get('imagen_url')
-            
-            cat_id_raw = request.form.get("categoria_id")
-            cat_id = int(cat_id_raw) if cat_id_raw and cat_id_raw != "" else None
+            cat_id = int(request.form.get("categoria_id") or 0) if request.form.get("categoria_id") else None
             
             es_acc = False
             for c in categorias:
@@ -1457,8 +1462,7 @@ def editar_producto(id):
                     break
 
             if es_acc:
-                stock_val_raw = request.form.get("stock_total")
-                stock_val = int(stock_val_raw) if stock_val_raw and stock_val_raw != "" else 0
+                stock_val = int(request.form.get("stock_total") or 0)
                 s_ch, s_m, s_g, s_xg = stock_val, 0, 0, 0
             else:
                 s_ch = int(request.form.get("stock_ch") or 0)
@@ -1466,27 +1470,24 @@ def editar_producto(id):
                 s_g = int(request.form.get("stock_g") or 0)
                 s_xg = int(request.form.get("stock_xg") or 0)
 
-            precio_raw = request.form.get("precio")
-            precio_val = float(precio_raw) if precio_raw and precio_raw != "" else 0.0
-
             supabase.table("productos").update({
                 "nombre": request.form.get("nombre"),
                 "categoria_id": cat_id,
-                "precio": precio_val,
+                "precio": float(request.form.get("precio") or 0),
                 "stock_ch": s_ch,
                 "stock_m": s_m,
                 "stock_g": s_g,
                 "stock_xg": s_xg,
                 "imagen_url": imagen_url
             }).eq("id", id).eq("tienda_id", tienda_id).execute()
-            
             return redirect(url_for("ver_productos"))
         except Exception as e:
-            return f"<div style='padding:30px; font-family:sans-serif;'><h3>Error al actualizar el producto:</h3><p>{e}</p><br><a href='/productos'>Regresar al inventario</a></div>"
+            return f"Error al actualizar: {e}"
 
     foto_actual = producto.get('imagen_url') or "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500"
     prod_cat_id = producto.get('categoria_id')
 
+    # Determinar si la categoría actual es accesorio
     cat_actual_nombre = ""
     options_cat = ""
     for c in categorias:
@@ -1500,33 +1501,33 @@ def editar_producto(id):
     disp_unico = "block" if es_accesorio_actual else "none"
     val_total_acc = producto.get('stock_ch') or 0
 
-    content = f"""
+    content = """
         <h1>Editar Producto</h1>
         <form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
             <input type="hidden" name="imagen_recortada" id="imagen_recortada">
-            <label>Nombre</label><input type="text" name="nombre" value="{str(producto.get('nombre') or '')}" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Nombre</label><input type="text" name="nombre" value="NOMBRE_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
             <label>Categoría</label>
             <select name="categoria_id" id="selectCategoria" onchange="verificarCategoria()" style="width:100%; padding:8px; margin:6px 0 16px; background:white; border:1px solid var(--border); border-radius:6px;">
                 <option value="">Sin Categoría</option>
-                {options_cat}
+                OPTIONS_CAT_PLACEHOLDER
             </select>
 
-            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="{str(producto.get('precio') or 0)}" required style="width:100%; padding:8px; margin:6px 0 16px;">
+            <label>Precio (MXN)</label><input type="number" step="0.01" name="precio" value="PRECIO_PLACEHOLDER" required style="width:100%; padding:8px; margin:6px 0 16px;">
             
-            <div id="seccionStockTallas" style="display:{disp_tallas}; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
-                <div><label>Stock CH</label><input type="number" name="stock_ch" value="{str(producto.get('stock_ch') or 0)}" style="width:100%; padding:8px;"></div>
-                <div><label>Stock M</label><input type="number" name="stock_m" value="{str(producto.get('stock_m') or 0)}" style="width:100%; padding:8px;"></div>
-                <div><label>Stock G</label><input type="number" name="stock_g" value="{str(producto.get('stock_g') or 0)}" style="width:100%; padding:8px;"></div>
-                <div><label>Stock XG</label><input type="number" name="stock_xg" value="{str(producto.get('stock_xg') or 0)}" style="width:100%; padding:8px;"></div>
+            <div id="seccionStockTallas" style="display:DISP_TALLAS_PLACEHOLDER; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                <div><label>Stock CH</label><input type="number" name="stock_ch" value="SCH_PLACEHOLDER" style="width:100%; padding:8px;"></div>
+                <div><label>Stock M</label><input type="number" name="stock_m" value="SM_PLACEHOLDER" style="width:100%; padding:8px;"></div>
+                <div><label>Stock G</label><input type="number" name="stock_g" value="SG_PLACEHOLDER" style="width:100%; padding:8px;"></div>
+                <div><label>Stock XG</label><input type="number" name="stock_xg" value="SXG_PLACEHOLDER" style="width:100%; padding:8px;"></div>
             </div>
 
-            <div id="seccionStockUnico" style="display:{disp_unico}; margin-bottom:16px;">
+            <div id="seccionStockUnico" style="display:DISP_UNICO_PLACEHOLDER; margin-bottom:16px;">
                 <label>Cantidad Disponible (Stock Total)</label>
-                <input type="number" name="stock_total" value="{str(val_total_acc)}" style="width:100%; padding:8px; margin-top:6px;">
+                <input type="number" name="stock_total" value="VAL_TOTAL_ACC" style="width:100%; padding:8px; margin-top:6px;">
             </div>
 
-            <label>Foto Actual</label><div style="margin-bottom:12px;"><img src="{foto_actual}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"></div>
+            <label>Foto Actual</label><div style="margin-bottom:12px;"><img src="FOTO_PLACEHOLDER" style="width:80px;height:80px;object-fit:cover;border-radius:6px;"></div>
             <label>Cambiar Foto (Opcional)</label><input type="file" id="inputFoto" accept="image/*" style="width:100%; margin-bottom:16px;">
             
             <div id="editorContainer" style="display:none; background:#18181B; padding:10px; border-radius:8px; text-align:center; margin-bottom:16px;">
@@ -1543,7 +1544,7 @@ def editar_producto(id):
         </form>
 
         <script>
-            function verificarCategoria() {
+            function verificarCategoria() {{
                 const select = document.getElementById('selectCategoria');
                 const selectedOption = select.options[select.selectedIndex];
                 const catNombre = selectedOption.getAttribute('data-nombre') || '';
@@ -1551,41 +1552,53 @@ def editar_producto(id):
                 const seccionTallas = document.getElementById('seccionStockTallas');
                 const seccionUnico = document.getElementById('seccionStockUnico');
 
-                if (catNombre.toLowerCase().includes('accesorio')) {
+                if (catNombre.toLowerCase().includes('accesorio')) {{
                     seccionTallas.style.display = 'none';
                     seccionUnico.style.display = 'block';
-                } else {
+                }} else {{
                     seccionTallas.style.display = 'grid';
                     seccionUnico.style.display = 'none';
-                }
-            }
+                }}
+            }}
 
             let cropper = null;
-            document.getElementById('inputFoto').addEventListener('change', function(e) {
+            document.getElementById('inputFoto').addEventListener('change', function(e) {{
                 const file = e.target.files[0];
-                if (file) {
+                if (file) {{
                     const reader = new FileReader();
-                    reader.onload = function(ev) {
+                    reader.onload = function(ev) {{
                         document.getElementById('imagenParaRecortar').src = ev.target.result;
                         document.getElementById('editorContainer').style.display = 'block';
                         if (cropper) cropper.destroy();
-                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
-                    };
+                        cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
+                    }};
                     reader.readAsDataURL(file);
-                }
-            });
-            function confirmarRecorte() {
-                const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+                }}
+            }});
+            function confirmarRecorte() {{
+                const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
                 const b64 = canvas.toDataURL('image/jpeg');
                 document.getElementById('imagen_recortada').value = b64;
                 document.getElementById('imgResultadoPrev').src = b64;
                 document.getElementById('editorContainer').style.display = 'none';
                 document.getElementById('vistaPreviaBox').style.display = 'block';
-            }
+            }}
         </script>
     """
     
-    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
+    content_final = content.replace("NOMBRE_PLACEHOLDER", str(producto.get('nombre') or '')) \
+                           .replace("OPTIONS_CAT_PLACEHOLDER", options_cat) \
+                           .replace("PRECIO_PLACEHOLDER", str(producto.get('precio') or 0)) \
+                           .replace("SCH_PLACEHOLDER", str(producto.get('stock_ch') or 0)) \
+                           .replace("SM_PLACEHOLDER", str(producto.get('stock_m') or 0)) \
+                           .replace("SG_PLACEHOLDER", str(producto.get('stock_g') or 0)) \
+                           .replace("SXG_PLACEHOLDER", str(producto.get('stock_xg') or 0)) \
+                           .replace("VAL_TOTAL_ACC", str(val_total_acc)) \
+                           .replace("DISP_TALLAS_PLACEHOLDER", disp_tallas) \
+                           .replace("DISP_UNICO_PLACEHOLDER", disp_unico) \
+                           .replace("FOTO_PLACEHOLDER", foto_actual)
+
+    return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content_final))
 
 @app.route("/admin/producto/eliminar/<int:id>")
 @login_required
