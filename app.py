@@ -841,6 +841,7 @@ def super_admin_panel():
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Control Maestro</title>
 		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 		<style>
 			* {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
 			body {{ background: #F4F4F5; color: #18181B; padding: 40px; }}
@@ -850,13 +851,18 @@ def super_admin_panel():
 			table {{ width: 100%; border-collapse: collapse; text-align: left; }}
 			th {{ padding: 12px 16px; background: #FAFAFA; color: #71717A; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #E4E4E7; }}
 			td {{ padding: 16px; border-bottom: 1px solid #E4E4E7; font-size: 0.9rem; }}
+			.btn-primary {{ background: #1E3A8A; color: white; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }}
+			.btn-danger {{ background: #EF4444; color: white; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; }}
 		</style>
 	</head>
 	<body>
 		<div class="container">
 			<div class="header">
 				<h1>Control Maestro de Tiendas</h1>
-				<a href="/logout" style="background:#EF4444; color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600;">Cerrar Sesión</a>
+				<div style="display: flex; gap: 12px; align-items: center;">
+					<a href="/admin/tienda/nueva" class="btn-primary"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>
+					<a href="/logout" class="btn-danger">Cerrar Sesión</a>
+				</div>
 			</div>
 			<div class="table-box">
 				<table>
