@@ -802,7 +802,6 @@ def super_admin_panel():
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Control Maestro</title>
 		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 		<style>
 			* {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
 			body {{ background: #F4F4F5; color: #18181B; padding: 40px; }}
@@ -812,18 +811,13 @@ def super_admin_panel():
 			table {{ width: 100%; border-collapse: collapse; text-align: left; }}
 			th {{ padding: 12px 16px; background: #FAFAFA; color: #71717A; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #E4E4E7; }}
 			td {{ padding: 16px; border-bottom: 1px solid #E4E4E7; font-size: 0.9rem; }}
-			.btn-primary {{ background: #1E3A8A; color: white; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }}
-			.btn-danger {{ background: #EF4444; color: white; padding: 10px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; }}
 		</style>
 	</head>
 	<body>
 		<div class="container">
 			<div class="header">
 				<h1>Control Maestro de Tiendas</h1>
-				<div style="display: flex; gap: 12px; align-items: center;">
-					<a href="/admin/tienda/nueva" class="btn-primary"><i class="fa-solid fa-plus-circle"></i> Registrar Tienda</a>
-					<a href="/logout" class="btn-danger">Cerrar Sesión</a>
-				</div>
+				<a href="/logout" style="background:#EF4444; color:white; padding:10px 16px; border-radius:6px; text-decoration:none; font-weight:600;">Cerrar Sesión</a>
 			</div>
 			<div class="table-box">
 				<table>
@@ -939,52 +933,22 @@ def nueva_tienda():
 					"password": request.form.get("admin_pass"),
 					"tienda_id": res_t.data[0].get("id")
 				}).execute()
-				return redirect(url_for("super_admin_panel"))
+				return redirect(url_for("catalogo_tienda", slug=request.form.get("slug")))
 		except Exception as e:
 			error = str(e)
 	
-	return render_template_string("""
-	<!DOCTYPE html>
-	<html lang="es">
-	<head>
-		<meta charset="UTF-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Registrar Nueva Tienda</title>
-		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-		<style>
-			* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
-			body { background: #F4F4F5; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-			.card { background: white; padding: 32px; border-radius: 12px; border: 1px solid #E4E4E7; width: 100%; max-width: 450px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-			h2 { color: #18181B; font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; }
-			p.sub { color: #71717A; font-size: 0.85rem; margin-bottom: 24px; }
-			label { font-size: 0.8rem; font-weight: 700; color: #3F3F46; text-transform: uppercase; display: block; margin-top: 12px; }
-			input { width: 100%; padding: 10px 12px; margin-top: 6px; background: #FAFAFA; border: 1px solid #E4E4E7; border-radius: 6px; font-size: 0.9rem; }
-			button { width: 100%; padding: 12px; background: #1E3A8A; color: white; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; margin-top: 20px; }
-			button:hover { background: #1D4ED8; }
-			.back { display: block; text-align: center; margin-top: 16px; color: #71717A; text-decoration: none; font-size: 0.85rem; }
-		</style>
-	</head>
-	<body>
-		<div class="card">
-			<h2>Registrar Tienda</h2>
-			<p class="sub">Crea un nuevo local y asigna sus accesos de administración</p>
-			{% if error %}<p style="color:#EF4444; font-size:0.85rem; margin-bottom:12px;">{{ error }}</p>{% endif %}
-			<form method="POST">
-				<label>Nombre de la Tienda</label>
-				<input type="text" name="nombre" placeholder="Ej. Urban Store" required>
-				<label>Slug (Identificador URL)</label>
-				<input type="text" name="slug" placeholder="Ej. urban-store" required>
-				<label>Usuario Administrador</label>
-				<input type="text" name="admin_user" placeholder="Ej. admin_urban" required>
-				<label>Contraseña Administrador</label>
-				<input type="password" name="admin_pass" required>
-				<button type="submit">Guardar Tienda</button>
-			</form>
-			<a href="/super-admin" class="back">← Volver al Control Maestro</a>
-		</div>
-	</body>
-	</html>
-	""", error=error)
+	content = f"""
+		<h1>Registrar Tienda</h1>
+		{f'<p style="color:red;">{error}</p>' if error else ''}
+		<form method="POST">
+			<label>Nombre</label><input type="text" name="nombre" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+			<label>Slug</label><input type="text" name="slug" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+			<label>Admin User</label><input type="text" name="admin_user" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+			<label>Admin Pass</label><input type="password" name="admin_pass" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
+			<button type="submit" style="background:var(--primary); color:white; padding:10px; border:none; border-radius:6px;">Crear</button>
+		</form>
+	"""
+	return render_template_string(obtener_sidebar_admin(es_superadmin=True).replace("CONTENT_PLACEHOLDER", content))
 
 @app.route("/pedidos")
 @login_required
@@ -1373,95 +1337,6 @@ def nuevo_producto():
 			return redirect(url_for("ver_productos"))
 		except Exception as e:
 			return f"<div style='padding:30px; font-family:sans-serif;'><h3>Error al crear el producto:</h3><p>{e}</p><br><a href='/productos'>Regresar</a></div>"
-
-	options_cat = ""
-	for c in categorias:
-		options_cat += f"<option value='{c.get('id')}' data-nombre='{c.get('nombre')}'>{c.get('nombre')}</option>"
-
-	content = f"""
-		<h1>Nuevo Producto</h1>
-		<form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
-			<input type="hidden" name="imagen_recortada" id="imagen_recortada" required>
-			<label>Nombre del Producto</label><input type="text" name="nombre" required style="width:100%%; padding:8px; margin:6px 0 16px;">
-			
-			<label>Categoría</label>
-			<select name="categoria_id" id="selectCategoria" onchange="verificarCategoria()" style="width:100%%; padding:8px; margin:6px 0 16px; background:white; border:1px solid var(--border); border-radius:6px;" required>
-				<option value="" disabled selected>Elige una categoría...</option>
-				{options_cat}
-			</select>
-
-			<label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required style="width:100%%; padding:8px; margin:6px 0 16px;">
-			
-			<div id="seccionStockTallas" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
-				<div><label>Stock CH</label><input type="number" name="stock_ch" value="5" style="width:100%%; padding:8px;"></div>
-				<div><label>Stock M</label><input type="number" name="stock_m" value="5" style="width:100%%; padding:8px;"></div>
-				<div><label>Stock G</label><input type="number" name="stock_g" value="5" style="width:100%%; padding:8px;"></div>
-				<div><label>Stock XG</label><input type="number" name="stock_xg" value="5" style="width:100%%; padding:8px;"></div>
-			</div>
-
-			<div id="seccionStockUnico" style="display:none; margin-bottom:16px;">
-				<label>Cantidad Disponible (Stock Total)</label>
-				<input type="number" name="stock_total" value="10" style="width:100%%; padding:8px; margin-top:6px;">
-			</div>
-
-			<label>Foto (Recortar)</label><input type="file" id="inputFoto" accept="image/*" style="width:100%%; margin-bottom:16px;" required>
-			
-			<div id="editorContainer" style="display:none; background:#18181B; padding:10px; border-radius:8px; text-align:center; margin-bottom:16px;">
-				<div style="max-height:250px; overflow:hidden; margin-bottom:8px;"><img id="imagenParaRecortar" style="max-width:100%%;"></div>
-				<button type="button" onclick="cropper.rotate(90)" style="background:#3F3F46; color:white; border:none; padding:6px 10px; border-radius:4px;">Girar</button>
-				<button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:6px 10px; border-radius:4px;">Aplicar Recorte</button>
-			</div>
-
-			<div id="vistaPreviaBox" style="display:none; text-align:center; margin-bottom:16px;">
-				<img id="imgResultadoPrev" style="width:80px; height:80px; object-fit:cover; border-radius:6px;">
-			</div>
-
-			<button type="submit" style="background:var(--primary); color:white; padding:10px 20px; border:none; border-radius:6px; font-weight:700;">Guardar Producto</button>
-		</form>
-
-		<script>
-			function verificarCategoria() {{
-				const select = document.getElementById('selectCategoria');
-				const selectedOption = select.options[select.selectedIndex];
-				const catNombre = selectedOption.getAttribute('data-nombre') || '';
-				
-				const seccionTallas = document.getElementById('seccionStockTallas');
-				const seccionUnico = document.getElementById('seccionStockUnico');
-
-				if (catNombre.toLowerCase().includes('accesorio')) {{
-					seccionTallas.style.display = 'none';
-					seccionUnico.style.display = 'block';
-				}} else {{
-					seccionTallas.style.display = 'grid';
-					seccionUnico.style.display = 'none';
-				}}
-			}}
-
-			let cropper = null;
-			document.getElementById('inputFoto').addEventListener('change', function(e) {{
-				const file = e.target.files[0];
-				if (file) {{
-					const reader = new FileReader();
-					reader.onload = function(ev) {{
-						document.getElementById('imagenParaRecortar').src = ev.target.result;
-						document.getElementById('editorContainer').style.display = 'block';
-						if (cropper) cropper.destroy();
-						cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
-					}};
-					reader.readAsDataURL(file);
-				}}
-			}});
-			function confirmarRecorte() {{
-				const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
-				const b64 = canvas.toDataURL('image/jpeg');
-				document.getElementById('imagen_recortada').value = b64;
-				document.getElementById('imgResultadoPrev').src = b64;
-				document.getElementById('editorContainer').style.display = 'none';
-				document.getElementById('vistaPreviaBox').style.display = 'block';
-			}}
-		</script>
-	"""
-	return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
 
 	options_cat = ""
 	for c in categorias:
