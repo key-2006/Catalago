@@ -710,11 +710,13 @@ def login():
 		user_input = request.form.get("username")
 		pass_input = request.form.get("password")
 		
+		# Validación del Superadministrador
 		if user_input == "super_master" and pass_input == "master2026":
 			session["logged_in"] = True
 			session["is_superadmin"] = True
 			return redirect(url_for("super_admin_panel"))
 		
+		# Validación de administradores normales de cada tienda
 		try:
 			res = supabase.table("administradores").select("*").eq("username", user_input).execute()
 			if res.data and len(res.data) > 0:
@@ -728,6 +730,43 @@ def login():
 			error = "Usuario o contraseña incorrectos."
 		except Exception as e:
 			error = f"Error al validar credenciales: {e}"
+
+	return render_template_string("""
+	<!DOCTYPE html>
+	<html lang="es">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Acceso Admin</title>
+		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+		<style>
+			* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+			body { background: #18181B; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+			.login-card { background: #27272A; padding: 32px; border-radius: 12px; border: 1px solid #3F3F46; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+			.login-card h2 { color: #FAFAFA; font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; text-align: center; }
+			p.sub { color: #A1A1AA; font-size: 0.85rem; text-align: center; margin-bottom: 24px; }
+			label { font-size: 0.8rem; font-weight: 700; color: #D4D4D8; text-transform: uppercase; }
+			input { width: 100%; padding: 12px; margin: 6px 0 16px; background: #18181B; border: 1px solid #3F3F46; color: white; border-radius: 6px; }
+			button { width: 100%; padding: 12px; background: #1E3A8A; color: white; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+			button:hover { background: #1D4ED8; }
+		</style>
+	</head>
+	<body>
+		<div class="login-card">
+			<h2>Panel de Acceso</h2>
+			<p class="sub">Gestión interna del local o plataforma</p>
+			{% if error %}<p style="color:#FCA5A5; text-align:center; margin-bottom:12px; font-size:0.85rem;">{{ error }}</p>{% endif %}
+			<form method="POST">
+				<label>Usuario</label>
+				<input type="text" name="username" required>
+				<label>Contraseña</label>
+				<input type="password" name="password" required>
+				<button type="submit">Ingresar</button>
+			</form>
+		</div>
+	</body>
+	</html>
+	""", error=error)
 
 	return render_template_string("""
 	<!DOCTYPE html>
