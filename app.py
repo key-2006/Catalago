@@ -1382,6 +1382,95 @@ def nuevo_producto():
 		<h1>Nuevo Producto</h1>
 		<form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
 			<input type="hidden" name="imagen_recortada" id="imagen_recortada" required>
+			<label>Nombre del Producto</label><input type="text" name="nombre" required style="width:100%%; padding:8px; margin:6px 0 16px;">
+			
+			<label>Categoría</label>
+			<select name="categoria_id" id="selectCategoria" onchange="verificarCategoria()" style="width:100%%; padding:8px; margin:6px 0 16px; background:white; border:1px solid var(--border); border-radius:6px;" required>
+				<option value="" disabled selected>Elige una categoría...</option>
+				{options_cat}
+			</select>
+
+			<label>Precio (MXN)</label><input type="number" step="0.01" name="precio" required style="width:100%%; padding:8px; margin:6px 0 16px;">
+			
+			<div id="seccionStockTallas" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+				<div><label>Stock CH</label><input type="number" name="stock_ch" value="5" style="width:100%%; padding:8px;"></div>
+				<div><label>Stock M</label><input type="number" name="stock_m" value="5" style="width:100%%; padding:8px;"></div>
+				<div><label>Stock G</label><input type="number" name="stock_g" value="5" style="width:100%%; padding:8px;"></div>
+				<div><label>Stock XG</label><input type="number" name="stock_xg" value="5" style="width:100%%; padding:8px;"></div>
+			</div>
+
+			<div id="seccionStockUnico" style="display:none; margin-bottom:16px;">
+				<label>Cantidad Disponible (Stock Total)</label>
+				<input type="number" name="stock_total" value="10" style="width:100%%; padding:8px; margin-top:6px;">
+			</div>
+
+			<label>Foto (Recortar)</label><input type="file" id="inputFoto" accept="image/*" style="width:100%%; margin-bottom:16px;" required>
+			
+			<div id="editorContainer" style="display:none; background:#18181B; padding:10px; border-radius:8px; text-align:center; margin-bottom:16px;">
+				<div style="max-height:250px; overflow:hidden; margin-bottom:8px;"><img id="imagenParaRecortar" style="max-width:100%%;"></div>
+				<button type="button" onclick="cropper.rotate(90)" style="background:#3F3F46; color:white; border:none; padding:6px 10px; border-radius:4px;">Girar</button>
+				<button type="button" onclick="confirmarRecorte()" style="background:#047857; color:white; border:none; padding:6px 10px; border-radius:4px;">Aplicar Recorte</button>
+			</div>
+
+			<div id="vistaPreviaBox" style="display:none; text-align:center; margin-bottom:16px;">
+				<img id="imgResultadoPrev" style="width:80px; height:80px; object-fit:cover; border-radius:6px;">
+			</div>
+
+			<button type="submit" style="background:var(--primary); color:white; padding:10px 20px; border:none; border-radius:6px; font-weight:700;">Guardar Producto</button>
+		</form>
+
+		<script>
+			function verificarCategoria() {{
+				const select = document.getElementById('selectCategoria');
+				const selectedOption = select.options[select.selectedIndex];
+				const catNombre = selectedOption.getAttribute('data-nombre') || '';
+				
+				const seccionTallas = document.getElementById('seccionStockTallas');
+				const seccionUnico = document.getElementById('seccionStockUnico');
+
+				if (catNombre.toLowerCase().includes('accesorio')) {{
+					seccionTallas.style.display = 'none';
+					seccionUnico.style.display = 'block';
+				}} else {{
+					seccionTallas.style.display = 'grid';
+					seccionUnico.style.display = 'none';
+				}}
+			}}
+
+			let cropper = null;
+			document.getElementById('inputFoto').addEventListener('change', function(e) {{
+				const file = e.target.files[0];
+				if (file) {{
+					const reader = new FileReader();
+					reader.onload = function(ev) {{
+						document.getElementById('imagenParaRecortar').src = ev.target.result;
+						document.getElementById('editorContainer').style.display = 'block';
+						if (cropper) cropper.destroy();
+						cropper = new Cropper(document.getElementById('imagenParaRecortar'), {{ aspectRatio: 1, viewMode: 1 }});
+					}};
+					reader.readAsDataURL(file);
+				}}
+			}});
+			function confirmarRecorte() {{
+				const canvas = cropper.getCroppedCanvas({{ width: 600, height: 600 }});
+				const b64 = canvas.toDataURL('image/jpeg');
+				document.getElementById('imagen_recortada').value = b64;
+				document.getElementById('imgResultadoPrev').src = b64;
+				document.getElementById('editorContainer').style.display = 'none';
+				document.getElementById('vistaPreviaBox').style.display = 'block';
+			}}
+		</script>
+	"""
+	return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False)).replace("CONTENT_PLACEHOLDER", content))
+
+	options_cat = ""
+	for c in categorias:
+		options_cat += f"<option value='{c.get('id')}' data-nombre='{c.get('nombre')}'>{c.get('nombre')}</option>"
+
+	content = f"""
+		<h1>Nuevo Producto</h1>
+		<form method="POST" style="background:white; padding:24px; border-radius:8px; max-width:500px; border:1px solid var(--border);">
+			<input type="hidden" name="imagen_recortada" id="imagen_recortada" required>
 			<label>Nombre del Producto</label><input type="text" name="nombre" required style="width:100%; padding:8px; margin:6px 0 16px;">
 			
 			<label>Categoría</label>
