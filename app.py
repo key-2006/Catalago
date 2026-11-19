@@ -1483,6 +1483,7 @@ def ver_productos():
 
 		res = supabase.table("productos").select("*").eq("tienda_id", tienda_id).execute()
 		productos = res.data if res.data else []
+		productos.sort(key=lambda x: (x.get('categoria_id') if x.get('categoria_id') is not None else 999999, x.get('id') or 0))
 	except:
 		pass
 
