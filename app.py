@@ -1510,7 +1510,7 @@ def ver_productos():
 
 		rows += f"""
 		<tr>
-			<td>#{p.get('id')}</td>
+			<td>#{p.get('categoria_id') or '-'}</td>
 			<td><img src='{img}' style='width:40px;height:40px;object-fit:cover;border-radius:4px;'></td>
 			<td>{p.get('nombre')}</td>
 			<td><b>${p.get('precio')}</b></td>
