@@ -1659,13 +1659,13 @@ def nuevo_producto():
 						document.getElementById('imagenParaRecortar').src = ev.target.result;
 						document.getElementById('editorContainer').style.display = 'block';
 						if (cropper) cropper.destroy();
-						cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
+						cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: NaN, viewMode: 1, autoCropArea: 1, responsive: true, zoomable: true });
 					};
 					reader.readAsDataURL(file);
 				}
 			});
 			function confirmarRecorte() {
-				const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+				const canvas = cropper.getCroppedCanvas({ maxWidth: 800, maxHeight: 800, fillColor: '#ffffff' });
 				const b64 = canvas.toDataURL('image/jpeg');
 				document.getElementById('imagen_recortada').value = b64;
 				document.getElementById('imgResultadoPrev').src = b64;
@@ -1820,13 +1820,13 @@ def editar_producto(id):
 						document.getElementById('imagenParaRecortar').src = ev.target.result;
 						document.getElementById('editorContainer').style.display = 'block';
 						if (cropper) cropper.destroy();
-						cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: 1, viewMode: 1 });
+						cropper = new Cropper(document.getElementById('imagenParaRecortar'), { aspectRatio: NaN, viewMode: 1, autoCropArea: 1, responsive: true, zoomable: true });
 					};
 					reader.readAsDataURL(file);
 				}
 			});
 			function confirmarRecorte() {
-				const canvas = cropper.getCroppedCanvas({ width: 600, height: 600 });
+				const canvas = cropper.getCroppedCanvas({ maxWidth: 800, maxHeight: 800, fillColor: '#ffffff' });
 				const b64 = canvas.toDataURL('image/jpeg');
 				document.getElementById('imagen_recortada').value = b64;
 				document.getElementById('imgResultadoPrev').src = b64;
