@@ -768,43 +768,6 @@ def login():
 	</html>
 	""", error=error)
 
-	return render_template_string("""
-	<!DOCTYPE html>
-	<html lang="es">
-	<head>
-		<meta charset="UTF-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Acceso Admin</title>
-		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-		<style>
-			* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
-			body { background: #18181B; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-			.login-card { background: #27272A; padding: 32px; border-radius: 12px; border: 1px solid #3F3F46; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-			.login-card h2 { color: #FAFAFA; font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; text-align: center; }
-			p.sub { color: #A1A1AA; font-size: 0.85rem; text-align: center; margin-bottom: 24px; }
-			label { font-size: 0.8rem; font-weight: 700; color: #D4D4D8; text-transform: uppercase; }
-			input { width: 100%; padding: 12px; margin: 6px 0 16px; background: #18181B; border: 1px solid #3F3F46; color: white; border-radius: 6px; }
-			button { width: 100%; padding: 12px; background: #1E3A8A; color: white; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
-			button:hover { background: #1D4ED8; }
-		</style>
-	</head>
-	<body>
-		<div class="login-card">
-			<h2>Panel de Acceso</h2>
-			<p class="sub">Gestión interna del local o plataforma</p>
-			{% if error %}<p style="color:#FCA5A5; text-align:center; margin-bottom:12px; font-size:0.85rem;">{{ error }}</p>{% endif %}
-			<form method="POST">
-				<label>Usuario</label>
-				<input type="text" name="username" required>
-				<label>Contraseña</label>
-				<input type="password" name="password" required>
-				<button type="submit">Ingresar</button>
-			</form>
-		</div>
-	</body>
-	</html>
-	""", error=error)
-
 @app.route("/logout")
 def logout():
 	session.clear()
@@ -829,9 +792,10 @@ def super_admin_panel():
 		t_slug = t.get('slug')
 		activa = t.get('subscripcion_activa', True)
 		status_badge = '<span style="background:#ECFDF5; color:#047857; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Activa</span>' if activa else '<span style="background:#FEF2F2; color:#B91C1C; padding:4px 10px; border-radius:99px; font-weight:600; font-size:0.8rem;">Suspendida</span>'
-		btn_accion = f'<a href="/super-admin/cambiar-estatus/{t_id}" style="background:{"#B91C1C" if activa else "#047857"}; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;">{"Suspender" if activa else "Activar"}</a>'
+		btn_accion = f'<a href="/super-admin/cambiar-estatus/{t_id}" style="background:{"#B91C1C" if activa else "#047857"}; color:white; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem; margin-right:6px;">{"Suspender" if activa else "Activar"}</a>'
+		btn_eliminar = f'<a href="/super-admin/eliminar/{t_id}" onclick="return confirm(\'¿Estás seguro de eliminar permanentemente la tienda {t_nombre}?\');" style="background:#FEF2F2; color:#B91C1C; padding:6px 12px; border-radius:4px; text-decoration:none; font-weight:600; font-size:0.85rem;"><i class="fa-solid fa-trash"></i> Eliminar</a>'
 		
-		rows += f"<tr><td><strong>#{t_id}</strong></td><td><strong>{t_nombre}</strong></td><td><code>/tienda/{t_slug}</code></td><td>{status_badge}</td><td>{btn_accion}</td></tr>"
+		rows += f"<tr><td><strong>#{t_id}</strong></td><td><strong>{t_nombre}</strong></td><td><code>/tienda/{t_slug}</code></td><td>{status_badge}</td><td>{btn_accion}{btn_eliminar}</td></tr>"
 
 	return render_template_string(f"""
 	<!DOCTYPE html>
@@ -885,6 +849,20 @@ def cambiar_estatus_tienda(id):
 			estado = res.data[0].get("subscripcion_activa", True)
 			nuevo = not estado
 			supabase.table("tiendas").update({"subscripcion_activa": nuevo}).eq("id", id).execute()
+	except:
+		pass
+	return redirect(url_for("super_admin_panel"))
+
+@app.route("/super-admin/eliminar/<int:id>")
+def eliminar_tienda(id):
+	if not session.get("logged_in") or not session.get("is_superadmin"):
+		return redirect(url_for("login"))
+	try:
+		supabase.table("pedidos").delete().eq("tienda_id", id).execute()
+		supabase.table("productos").delete().eq("tienda_id", id).execute()
+		supabase.table("categorias").delete().eq("tienda_id", id).execute()
+		supabase.table("administradores").delete().eq("tienda_id", id).execute()
+		supabase.table("tiendas").delete().eq("id", id).execute()
 	except:
 		pass
 	return redirect(url_for("super_admin_panel"))
