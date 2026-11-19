@@ -960,40 +960,266 @@ def ver_catalogo_admin():
 
 @app.route("/admin/tienda/nueva", methods=["GET", "POST"])
 def nueva_tienda():
-	if not session.get("logged_in"):
+	if not session.get("logged_in") or not session.get("is_superadmin"):
 		return redirect(url_for("login"))
+		
 	error = None
 	if request.method == "POST":
 		try:
-			f_corte = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+			nombre = request.form.get("nombre", "").strip()
+			slug = request.form.get("slug", "").strip().lower()
+			admin_user = request.form.get("admin_user", "").strip()
+			admin_pass = request.form.get("admin_pass", "").strip()
+			
 			res_t = supabase.table("tiendas").insert({
-				"nombre": request.form.get("nombre"),
-				"slug": request.form.get("slug"),
-				"subscripcion_activa": True,
-				"fecha_corte": f_corte
+				"nombre": nombre,
+				"slug": slug,
+				"subscripcion_activa": True
 			}).execute()
+			
 			if res_t.data:
 				supabase.table("administradores").insert({
-					"username": request.form.get("admin_user"),
-					"password": request.form.get("admin_pass"),
+					"username": admin_user,
+					"password": admin_pass,
 					"tienda_id": res_t.data[0].get("id")
 				}).execute()
-				return redirect(url_for("catalogo_tienda", slug=request.form.get("slug")))
+				return redirect(url_for("super_admin_panel"))
 		except Exception as e:
-			error = str(e)
-	
-	content = f"""
-		<h1>Registrar Tienda</h1>
-		{f'<p style="color:red;">{error}</p>' if error else ''}
-		<form method="POST">
-			<label>Nombre</label><input type="text" name="nombre" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
-			<label>Slug</label><input type="text" name="slug" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
-			<label>Admin User</label><input type="text" name="admin_user" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
-			<label>Admin Pass</label><input type="password" name="admin_pass" required style="width:150px; padding:8px; margin-bottom:12px; display:block;">
-			<button type="submit" style="background:var(--primary); color:white; padding:10px; border:none; border-radius:6px;">Crear</button>
-		</form>
-	"""
-	return render_template_string(obtener_sidebar_admin(es_superadmin=True).replace("CONTENT_PLACEHOLDER", content))
+			error = f"Error al registrar la tienda: {str(e)}"
+
+	alerta_html = f'<div class="alert-error"><i class="fa-solid fa-circle-exclamation"></i> {error}</div>' if error else ''
+
+	return render_template_string(f"""
+	<!DOCTYPE html>
+	<html lang="es">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Registrar Nueva Tienda | Control Maestro</title>
+		<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+		<style>
+			* {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }}
+			body {{
+				background: #F4F4F5;
+				color: #18181B;
+				min-height: 100vh;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 24px;
+			}}
+			.card {{
+				background: #FFFFFF;
+				width: 100%;
+				max-width: 480px;
+				border-radius: 14px;
+				border: 1px solid #E4E4E7;
+				box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+				overflow: hidden;
+			}}
+			.card-header {{
+				background: #18181B;
+				color: #FFFFFF;
+				padding: 24px 28px;
+				display: flex;
+				align-items: center;
+				gap: 14px;
+			}}
+			.icon-box {{
+				width: 44px;
+				height: 44px;
+				background: rgba(255, 255, 255, 0.12);
+				border-radius: 10px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 1.25rem;
+				color: #60A5FA;
+			}}
+			.card-header h1 {{ font-size: 1.2rem; font-weight: 700; margin-bottom: 2px; }}
+			.card-header p {{ font-size: 0.82rem; color: #A1A1AA; }}
+			.card-body {{ padding: 28px; }}
+			.alert-error {{
+				background: #FEF2F2;
+				border: 1px solid #FECACA;
+				color: #B91C1C;
+				padding: 12px 14px;
+				border-radius: 8px;
+				font-size: 0.85rem;
+				margin-bottom: 20px;
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}}
+			.section-label {{
+				font-size: 0.72rem;
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.06em;
+				color: #71717A;
+				margin-bottom: 14px;
+				padding-bottom: 6px;
+				border-bottom: 1px solid #F4F4F5;
+			}}
+			.form-group {{ margin-bottom: 18px; }}
+			label {{
+				display: block;
+				font-size: 0.85rem;
+				font-weight: 600;
+				color: #27272A;
+				margin-bottom: 6px;
+			}}
+			.input-wrapper {{
+				position: relative;
+				display: flex;
+				align-items: center;
+			}}
+			.input-wrapper i {{
+				position: absolute;
+				left: 14px;
+				color: #A1A1AA;
+				font-size: 0.9rem;
+			}}
+			input {{
+				width: 100%;
+				padding: 11px 14px 11px 38px;
+				border: 1px solid #D4D4D8;
+				border-radius: 8px;
+				font-size: 0.92rem;
+				color: #18181B;
+				background: #FAFAFA;
+				transition: all 0.2s;
+			}}
+			input:focus {{
+				outline: none;
+				border-color: #1E3A8A;
+				background: #FFFFFF;
+				box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.12);
+			}}
+			.slug-preview {{
+				margin-top: 6px;
+				font-size: 0.78rem;
+				color: #52525B;
+				background: #F4F4F5;
+				padding: 6px 10px;
+				border-radius: 6px;
+				display: flex;
+				align-items: center;
+				gap: 6px;
+			}}
+			.slug-preview code {{ color: #1E3A8A; font-weight: 600; }}
+			.actions {{
+				display: flex;
+				gap: 12px;
+				margin-top: 26px;
+			}}
+			.btn {{
+				flex: 1;
+				padding: 12px 16px;
+				border-radius: 8px;
+				font-size: 0.9rem;
+				font-weight: 600;
+				text-align: center;
+				text-decoration: none;
+				cursor: pointer;
+				border: none;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				gap: 8px;
+				transition: all 0.2s;
+			}}
+			.btn-secondary {{
+				background: #F4F4F5;
+				color: #3F3F46;
+				border: 1px solid #E4E4E7;
+			}}
+			.btn-secondary:hover {{ background: #E4E4E7; }}
+			.btn-primary {{
+				background: #1E3A8A;
+				color: #FFFFFF;
+				box-shadow: 0 2px 4px rgba(30, 58, 138, 0.2);
+			}}
+			.btn-primary:hover {{ background: #1E40AF; transform: translateY(-1px); }}
+		</style>
+	</head>
+	<body>
+		<div class="card">
+			<div class="card-header">
+				<div class="icon-box"><i class="fa-solid fa-store"></i></div>
+				<div>
+					<h1>Registrar Nueva Tienda</h1>
+					<p>Alta de local y credenciales de administrador</p>
+				</div>
+			</div>
+			<div class="card-body">
+				{alerta_html}
+				<form method="POST">
+					<div class="section-label">1. Datos del Comercio</div>
+					
+					<div class="form-group">
+						<label for="nombre">Nombre de la Tienda</label>
+						<div class="input-wrapper">
+							<i class="fa-solid fa-tag"></i>
+							<input type="text" id="nombre" name="nombre" placeholder="Ej. Urban Style Boutique" required oninput="generarSlug(this.value)">
+						</div>
+					</div>
+
+					<div class="form-group">
+						<label for="slug">Identificador URL (Slug)</label>
+						<div class="input-wrapper">
+							<i class="fa-solid fa-link"></i>
+							<input type="text" id="slug" name="slug" placeholder="ej-urban-style" required oninput="actualizarVistaPrevia(this.value)">
+						</div>
+						<div class="slug-preview">
+							<i class="fa-solid fa-globe"></i> Enlace: <code>/tienda/<span id="slug-text">tu-tienda</span></code>
+						</div>
+					</div>
+
+					<div class="section-label" style="margin-top: 24px;">2. Acceso del Administrador</div>
+
+					<div class="form-group">
+						<label for="admin_user">Usuario Administrador</label>
+						<div class="input-wrapper">
+							<i class="fa-solid fa-user-shield"></i>
+							<input type="text" id="admin_user" name="admin_user" placeholder="Ej. admin_urban" required>
+						</div>
+					</div>
+
+					<div class="form-group">
+						<label for="admin_pass">Contraseña de Acceso</label>
+						<div class="input-wrapper">
+							<i class="fa-solid fa-lock"></i>
+							<input type="password" id="admin_pass" name="admin_pass" placeholder="••••••••" required>
+						</div>
+					</div>
+
+					<div class="actions">
+						<a href="/super-admin" class="btn btn-secondary"><i class="fa-solid fa-arrow-left"></i> Volver</a>
+						<button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Crear Tienda</button>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<script>
+			function generarSlug(texto) {{
+				const slug = texto.toLowerCase()
+					.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+					.replace(/[^a-z0-9\\s-]/g, "")
+					.trim()
+					.replace(/\\s+/g, "-");
+				document.getElementById("slug").value = slug;
+				actualizarVistaPrevia(slug);
+			}}
+			function actualizarVistaPrevia(valor) {{
+				document.getElementById("slug-text").textContent = valor || "tu-tienda";
+			}}
+		</script>
+	</body>
+	</html>
+	""")
 
 @app.route("/pedidos")
 @login_required
