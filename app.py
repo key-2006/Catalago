@@ -2,15 +2,46 @@ from flask import Flask, request, render_template_string, redirect, url_for, ses
 from functools import wraps
 from supabase import create_client, Client
 from datetime import datetime, timezone, timedelta
+from urllib.parse import quote
 import base64
 import csv
 import io
+import re
 
 app = Flask(__name__)
 app.secret_key = "clave_secreta_multiusuario_tiendas_123"
 
 SUPABASE_URL = "https://bkxniuudzmxcpouzgqxm.supabase.co"
 SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
+
+WHATSAPP_DEFAULT = "5219820000000"
+WHATSAPP_MEMORIA = {}
+
+def limpiar_telefono(valor) -> str:
+	if not valor:
+		return ""
+	return re.sub(r"\D", "", str(valor))
+
+def obtener_whatsapp_tienda(tienda: dict, slug: str) -> str:
+	tienda_id = tienda.get("id")
+	if tienda_id and tienda_id in WHATSAPP_MEMORIA and WHATSAPP_MEMORIA[tienda_id]:
+		return limpiar_telefono(WHATSAPP_MEMORIA[tienda_id])
+	for campo in ("whatsapp", "telefono", "wa_numero", "numero_whatsapp"):
+		limpio = limpiar_telefono(tienda.get(campo))
+		if limpio:
+			return limpio
+	return limpiar_telefono(WHATSAPP_DEFAULT)
+
+def guardar_whatsapp_tienda(tienda_id, numero_raw: str):
+	limpio = limpiar_telefono(numero_raw)
+	if tienda_id:
+		WHATSAPP_MEMORIA[tienda_id] = limpio
+	if not supabase or not tienda_id:
+		return
+	try:
+		supabase.table("tiendas").update({"whatsapp": limpio}).eq("id", tienda_id).execute()
+	except Exception:
+		pass
 
 try:
 	supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -522,6 +553,7 @@ def catalogo_tienda(slug):
 		p_pago = pedido_reciente.get('metodo_pago')
 		p_talla = pedido_reciente.get('talla') or 'N/A'
 		p_entrega = pedido_reciente.get('tiempo_entrega')
+		whatsapp_admin = obtener_whatsapp_tienda(tienda, slug)
 		
 		script_guardar_local = f"""
 		<script>
@@ -529,8 +561,15 @@ def catalogo_tienda(slug):
 		</script>
 		"""
 		
-		texto_whatsapp = "Hola! Acabo de hacer un encargo en " + tienda.get('nombre') + " - Folio: #" + str(p_id) + " - Talla: " + str(p_talla) + " - Pago: " + str(p_pago)
-		link_ws = "https://wa.me/?text=" + texto_whatsapp.replace(" ", "%20")
+		texto_whatsapp = (
+			f"Hola {tienda.get('nombre')}! Acabo de hacer un encargo:\n"
+			f"- Folio: #{p_id}\n"
+			f"- Cliente: {p_cliente}\n"
+			f"- Talla: {p_talla}\n"
+			f"- Pago: {p_pago}\n"
+			f"- Entrega: {p_entrega}"
+		)
+		link_ws = f"https://wa.me/{whatsapp_admin}?text={quote(texto_whatsapp)}"
 
 		alerta_html = f"""
 		{script_guardar_local}
@@ -867,17 +906,29 @@ def eliminar_tienda(id):
 		pass
 	return redirect(url_for("super_admin_panel"))
 
-@app.route("/admin")
+@app.route("/admin", methods=["GET", "POST"])
 @login_required
 def admin_index():
 	tienda_id = session.get("tienda_id")
 	nombre_tienda = "Mi Local"
+	slug_tienda = ""
+	whatsapp_actual = ""
 	fecha_corte_str = None
+	mensaje_whatsapp_guardado = ""
+
+	if request.method == "POST" and request.form.get("accion") == "guardar_whatsapp":
+		nuevo_wa = request.form.get("whatsapp_dueno", "").strip()
+		guardar_whatsapp_tienda(tienda_id, nuevo_wa)
+		mensaje_whatsapp_guardado = '<div style="background:#ECFDF5; border:1px solid #6EE7B7; color:#065F46; padding:12px 16px; border-radius:8px; margin-bottom:20px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Número de WhatsApp actualizado correctamente.</div>'
+
 	try:
-		res_t = supabase.table("tiendas").select("nombre, fecha_corte").eq("id", tienda_id).execute()
+		res_t = supabase.table("tiendas").select("*").eq("id", tienda_id).execute()
 		if res_t.data:
-			nombre_tienda = res_t.data[0].get("nombre")
-			fecha_corte_str = res_t.data[0].get("fecha_corte")
+			tienda_data = res_t.data[0]
+			nombre_tienda = tienda_data.get("nombre")
+			slug_tienda = tienda_data.get("slug") or ""
+			fecha_corte_str = tienda_data.get("fecha_corte")
+			whatsapp_actual = obtener_whatsapp_tienda(tienda_data, slug_tienda)
 	except:
 		pass
 
@@ -911,15 +962,32 @@ def admin_index():
 	alerta_stock = f'<div style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Atención de Inventario!</b> Hay {stock_bajo_count} producto(s) con stock bajo (3 piezas o menos). <a href="/productos" style="color: #991B1B; font-weight:700;">Revisar Productos</a></div>' if stock_bajo_count > 0 else ''
 
 	content = f"""
+		{mensaje_whatsapp_guardado}
 		{alerta_corte}
 		{alerta_pendientes}
 		{alerta_stock}
 		<div class="header-title"><h1>Panel de {nombre_tienda}</h1></div>
-		<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+		<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 28px;">
 			<a href="/pedidos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Encargos</h3></div></a>
 			<a href="/productos" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Productos</h3></div></a>
 			<a href="/categorias" style="text-decoration:none;"><div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border);"><h3>Categorías</h3></div></a>
 			<a href="/admin/reportes" style="text-decoration:none;"><div style="background:#FFFBEB; border:1px solid #FCD34D; padding:24px; border-radius:8px;"><h3 style="color:#92400E;"><i class="fa-solid fa-chart-line"></i> Reportes</h3></div></a>
+		</div>
+
+		<div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border); max-width:560px;">
+			<h3 style="font-size:1.1rem; margin-bottom:6px; display:flex; align-items:center; gap:8px; color:#065F46;">
+				<i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> WhatsApp para Recibir Pedidos
+			</h3>
+			<p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">
+				Ingresa el número con código de país (sin + ni espacios, ej. <code>5219821234567</code>) donde recibirás los encargos de tus clientes.
+			</p>
+			<form method="POST" style="display:flex; gap:10px; align-items:center;">
+				<input type="hidden" name="accion" value="guardar_whatsapp">
+				<input type="text" name="whatsapp_dueno" value="{whatsapp_actual}" placeholder="Ej. 5219821234567" style="flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
+				<button type="submit" style="background:#059669; color:white; border:none; padding:10px 18px; border-radius:6px; font-weight:700; cursor:pointer; white-space:nowrap;">
+					<i class="fa-solid fa-floppy-disk"></i> Guardar Número
+				</button>
+			</form>
 		</div>
 	"""
 	return render_template_string(obtener_sidebar_admin(es_superadmin=session.get("is_superadmin", False), pedidos_pendientes=pendientes_count).replace("CONTENT_PLACEHOLDER", content))
@@ -946,6 +1014,7 @@ def nueva_tienda():
 		try:
 			nombre = request.form.get("nombre", "").strip()
 			slug = request.form.get("slug", "").strip().lower()
+			whatsapp_tienda = limpiar_telefono(request.form.get("whatsapp_tienda", ""))
 			admin_user = request.form.get("admin_user", "").strip()
 			admin_pass = request.form.get("admin_pass", "").strip()
 			
@@ -956,10 +1025,13 @@ def nueva_tienda():
 			}).execute()
 			
 			if res_t.data:
+				nueva_t_id = res_t.data[0].get("id")
+				if whatsapp_tienda:
+					guardar_whatsapp_tienda(nueva_t_id, whatsapp_tienda)
 				supabase.table("administradores").insert({
 					"username": admin_user,
 					"password": admin_pass,
-					"tienda_id": res_t.data[0].get("id")
+					"tienda_id": nueva_t_id
 				}).execute()
 				return redirect(url_for("super_admin_panel"))
 		except Exception as e:
@@ -1152,6 +1224,14 @@ def nueva_tienda():
 						</div>
 						<div class="slug-preview">
 							<i class="fa-solid fa-globe"></i> Enlace: <code>/tienda/<span id="slug-text">tu-tienda</span></code>
+						</div>
+					</div>
+
+					<div class="form-group">
+						<label for="whatsapp_tienda">WhatsApp del Dueño (Opcional)</label>
+						<div class="input-wrapper">
+							<i class="fa-brands fa-whatsapp"></i>
+							<input type="text" id="whatsapp_tienda" name="whatsapp_tienda" placeholder="Ej. 5219821234567">
 						</div>
 					</div>
 
