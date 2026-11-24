@@ -16,6 +16,7 @@ SUPABASE_KEY = "sb_publishable_WUzLfoiBMtr7zZknBUo-_w_8W4MwY8S"
 
 WHATSAPP_DEFAULT = "5219820000000"
 WHATSAPP_MEMORIA = {}
+TRANSFERENCIA_MEMORIA = {}
 
 def limpiar_telefono(valor) -> str:
 	if not valor:
@@ -40,6 +41,36 @@ def guardar_whatsapp_tienda(tienda_id, numero_raw: str):
 		return
 	try:
 		supabase.table("tiendas").update({"whatsapp": limpio}).eq("id", tienda_id).execute()
+	except Exception:
+		pass
+
+def obtener_datos_transferencia(tienda: dict) -> dict:
+	tienda_id = tienda.get("id")
+	nombre_tienda = tienda.get("nombre") or "Nombre de la Tienda"
+	mem = TRANSFERENCIA_MEMORIA.get(tienda_id, {}) if tienda_id else {}
+
+	banco = (mem.get("banco") or tienda.get("banco") or "BBVA México").strip()
+	clabe = (mem.get("clabe") or tienda.get("clabe") or "1234 5678 9012 3456 78").strip()
+	titular = (mem.get("titular") or tienda.get("titular") or nombre_tienda).strip()
+
+	return {
+		"banco": banco,
+		"clabe": clabe,
+		"titular": titular
+	}
+
+def guardar_datos_transferencia(tienda_id, banco: str, clabe: str, titular: str):
+	datos = {
+		"banco": banco.strip(),
+		"clabe": clabe.strip(),
+		"titular": titular.strip()
+	}
+	if tienda_id:
+		TRANSFERENCIA_MEMORIA[tienda_id] = datos
+	if not supabase or not tienda_id:
+		return
+	try:
+		supabase.table("tiendas").update(datos).eq("id", tienda_id).execute()
 	except Exception:
 		pass
 
@@ -180,6 +211,7 @@ def catalogo_tienda(slug):
 
 		tienda = res_tienda.data[0]
 		tienda_id = tienda.get("id")
+		datos_transfer = obtener_datos_transferencia(tienda)
 		
 		if not tienda.get("subscripcion_activa", True):
 			return render_template_string(PLANTILLA_SUSPENDIDO)
@@ -428,9 +460,9 @@ def catalogo_tienda(slug):
 
 					<div class="box-banco" id="boxDatosBancarios">
 						<strong><i class="fa-solid fa-building-columns"></i> Datos de Transferencia:</strong>
-						<p style="margin-top:4px;"><b>Banco:</b> BBVA México</p>
-						<p><b>CLABE:</b> <code style="background:#DBEAFE; padding:2px 6px; border-radius:4px;">1234 5678 9012 3456 78</code></p>
-						<p><b>Titular:</b> Nombre de la Tienda</p>
+						<p style="margin-top:4px;"><b>Banco:</b> BANCO_TRANSFER_PLACEHOLDER</p>
+						<p><b>CLABE / Cuenta:</b> <code style="background:#DBEAFE; padding:2px 6px; border-radius:4px;">CLABE_TRANSFER_PLACEHOLDER</code></p>
+						<p><b>Titular:</b> TITULAR_TRANSFER_PLACEHOLDER</p>
 						<p style="font-size:0.75rem; color:#1E40AF; margin-top:6px; font-style:italic;">* Al confirmar tu encargo, envíanos el comprobante por WhatsApp para apartar la prenda inmediatamente.</p>
 					</div>
 
@@ -592,6 +624,9 @@ def catalogo_tienda(slug):
 	html_final = plantilla_catalogo.replace("TIENDA_NOMBRE", tienda.get('nombre')) \
 								  .replace("TIENDA_SLUG", slug) \
 								  .replace("TIENDA_ID", str(tienda_id)) \
+								  .replace("BANCO_TRANSFER_PLACEHOLDER", datos_transfer["banco"]) \
+								  .replace("CLABE_TRANSFER_PLACEHOLDER", datos_transfer["clabe"]) \
+								  .replace("TITULAR_TRANSFER_PLACEHOLDER", datos_transfer["titular"]) \
 								  .replace("ALERT_TOAST_PLACEHOLDER", alerta_html) \
 								  .replace("SECCIONES_HTML_PLACEHOLDER", contenido_grid)
 
@@ -913,13 +948,19 @@ def admin_index():
 	nombre_tienda = "Mi Local"
 	slug_tienda = ""
 	whatsapp_actual = ""
+	datos_transfer = {"banco": "BBVA México", "clabe": "", "titular": ""}
 	fecha_corte_str = None
-	mensaje_whatsapp_guardado = ""
+	mensaje_config_guardado = ""
 
-	if request.method == "POST" and request.form.get("accion") == "guardar_whatsapp":
+	if request.method == "POST" and request.form.get("accion") == "guardar_configuracion":
 		nuevo_wa = request.form.get("whatsapp_dueno", "").strip()
+		nuevo_banco = request.form.get("banco_dueno", "").strip()
+		nueva_clabe = request.form.get("clabe_dueno", "").strip()
+		nuevo_titular = request.form.get("titular_dueno", "").strip()
+
 		guardar_whatsapp_tienda(tienda_id, nuevo_wa)
-		mensaje_whatsapp_guardado = '<div style="background:#ECFDF5; border:1px solid #6EE7B7; color:#065F46; padding:12px 16px; border-radius:8px; margin-bottom:20px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Número de WhatsApp actualizado correctamente.</div>'
+		guardar_datos_transferencia(tienda_id, nuevo_banco, nueva_clabe, nuevo_titular)
+		mensaje_config_guardado = '<div style="background:#ECFDF5; border:1px solid #6EE7B7; color:#065F46; padding:12px 16px; border-radius:8px; margin-bottom:20px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Datos de contacto y transferencia guardados correctamente.</div>'
 
 	try:
 		res_t = supabase.table("tiendas").select("*").eq("id", tienda_id).execute()
@@ -929,6 +970,7 @@ def admin_index():
 			slug_tienda = tienda_data.get("slug") or ""
 			fecha_corte_str = tienda_data.get("fecha_corte")
 			whatsapp_actual = obtener_whatsapp_tienda(tienda_data, slug_tienda)
+			datos_transfer = obtener_datos_transferencia(tienda_data)
 	except:
 		pass
 
@@ -962,7 +1004,7 @@ def admin_index():
 	alerta_stock = f'<div style="background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; padding: 16px; border-radius: 8px; margin-bottom: 24px;"><b>¡Atención de Inventario!</b> Hay {stock_bajo_count} producto(s) con stock bajo (3 piezas o menos). <a href="/productos" style="color: #991B1B; font-weight:700;">Revisar Productos</a></div>' if stock_bajo_count > 0 else ''
 
 	content = f"""
-		{mensaje_whatsapp_guardado}
+		{mensaje_config_guardado}
 		{alerta_corte}
 		{alerta_pendientes}
 		{alerta_stock}
@@ -974,19 +1016,50 @@ def admin_index():
 			<a href="/admin/reportes" style="text-decoration:none;"><div style="background:#FFFBEB; border:1px solid #FCD34D; padding:24px; border-radius:8px;"><h3 style="color:#92400E;"><i class="fa-solid fa-chart-line"></i> Reportes</h3></div></a>
 		</div>
 
-		<div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border); max-width:560px;">
-			<h3 style="font-size:1.1rem; margin-bottom:6px; display:flex; align-items:center; gap:8px; color:#065F46;">
-				<i class="fa-brands fa-whatsapp" style="font-size:1.3rem;"></i> WhatsApp para Recibir Pedidos
+		<div style="background:white; padding:24px; border-radius:8px; border:1px solid var(--border); max-width:620px;">
+			<h3 style="font-size:1.15rem; margin-bottom:6px; display:flex; align-items:center; gap:8px; color:#1E3A8A;">
+				<i class="fa-solid fa-sliders"></i> Configuración de WhatsApp y Datos Bancarios
 			</h3>
-			<p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">
-				Ingresa el número con código de país (sin + ni espacios, ej. <code>5219821234567</code>) donde recibirás los encargos de tus clientes.
+			<p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:18px;">
+				Personaliza el WhatsApp donde recibirás los pedidos y la cuenta bancaria que verán tus clientes al elegir <b>Transferencia SPEI</b>.
 			</p>
-			<form method="POST" style="display:flex; gap:10px; align-items:center;">
-				<input type="hidden" name="accion" value="guardar_whatsapp">
-				<input type="text" name="whatsapp_dueno" value="{whatsapp_actual}" placeholder="Ej. 5219821234567" style="flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
-				<button type="submit" style="background:#059669; color:white; border:none; padding:10px 18px; border-radius:6px; font-weight:700; cursor:pointer; white-space:nowrap;">
-					<i class="fa-solid fa-floppy-disk"></i> Guardar Número
-				</button>
+			<form method="POST" style="display:flex; flex-direction:column; gap:14px;">
+				<input type="hidden" name="accion" value="guardar_configuracion">
+
+				<div>
+					<label style="display:block; font-size:0.8rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px;">
+						<i class="fa-brands fa-whatsapp" style="color:#059669;"></i> WhatsApp para Pedidos (sin + ni espacios)
+					</label>
+					<input type="text" name="whatsapp_dueno" value="{whatsapp_actual}" placeholder="Ej. 5219821234567" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
+				</div>
+
+				<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+					<div>
+						<label style="display:block; font-size:0.8rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px;">
+							Banco
+						</label>
+						<input type="text" name="banco_dueno" value="{datos_transfer['banco']}" placeholder="Ej. BBVA México" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
+					</div>
+					<div>
+						<label style="display:block; font-size:0.8rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px;">
+							Titular de la Cuenta
+						</label>
+						<input type="text" name="titular_dueno" value="{datos_transfer['titular']}" placeholder="Ej. Nombre del dueño o tienda" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
+					</div>
+				</div>
+
+				<div>
+					<label style="display:block; font-size:0.8rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px;">
+						CLABE Interbancaria / Número de Cuenta o Tarjeta
+					</label>
+					<input type="text" name="clabe_dueno" value="{datos_transfer['clabe']}" placeholder="Ej. 0123 4567 8901 2345 67" style="width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:6px; font-size:0.95rem;" required>
+				</div>
+
+				<div>
+					<button type="submit" style="background:#1E3A8A; color:white; border:none; padding:11px 20px; border-radius:6px; font-weight:700; cursor:pointer;">
+						<i class="fa-solid fa-floppy-disk"></i> Guardar Configuración
+					</button>
+				</div>
 			</form>
 		</div>
 	"""
